@@ -1,0 +1,13 @@
+pyproject.toml
+academic_planning_engine.egg-info/PKG-INFO
+academic_planning_engine.egg-info/SOURCES.txt
+academic_planning_engine.egg-info/dependency_links.txt
+academic_planning_engine.egg-info/requires.txt
+academic_planning_engine.egg-info/top_level.txt
+app/__init__.py
+app/models.py
+app/adapters/__init__.py
+app/adapters/swarthmore/__init__.py
+app/core/__init__.py
+app/parsers/__init__.py
+tests/test_models.py
