@@ -40,7 +40,7 @@ Every module has exactly one job:
 
 | Module | Responsibility |
 |--------|---------------|
-| `models.py` | Define the data structures. Nothing else. |
+| `models.py` | Domain data structures and small model-local predicates or queries. It contains no parsing, orchestration, institution-specific definitions, solver search, ranking, I/O, or external API behavior. (`RequirementStatus.items_satisfied_by()` is intentionally here as a model-local domain query.) |
 | `parsers/catalog.py` | Normalize CSV rows into `CourseSection` objects. |
 | `parsers/audit.py` | Normalize PDF text into `StudentRecord`. |
 | `adapters/swarthmore/requirement_defs.py` | Define which requirements remain and how to recognize satisfaction. |

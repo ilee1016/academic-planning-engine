@@ -1,0 +1,442 @@
+[
+  {
+    "ref_no": "30395",
+    "subject": "ANCH",
+    "number": "042",
+    "section_id": "01",
+    "title": "Democracy & its Challenges",
+    "credits": "1",
+    "distribution": [
+      "SS"
+    ],
+    "enr_limit": 20,
+    "instructors": [
+      "Munson,Rosaria"
+    ],
+    "course_type": "Course",
+    "meeting_times": [
+      {
+        "days": [
+          "M",
+          "W",
+          "F"
+        ],
+        "start": "10:30:00",
+        "end": "11:20:00"
+      }
+    ],
+    "note": "",
+    "linked_sections": []
+  },
+  {
+    "ref_no": "19859",
+    "subject": "ARTH",
+    "number": "001N",
+    "section_id": "01",
+    "title": "FYS:Indigenous Art,Land,Env(W)",
+    "credits": "1",
+    "distribution": [
+      "HU",
+      "HUW",
+      "W"
+    ],
+    "enr_limit": 12,
+    "instructors": [
+      "Green,Christopher"
+    ],
+    "course_type": "FY Seminar",
+    "meeting_times": [
+      {
+        "days": [
+          "M"
+        ],
+        "start": "13:15:00",
+        "end": "16:00:00"
+      }
+    ],
+    "note": "Cross listed with ENVS 002 Eligible for ENVS",
+    "linked_sections": []
+  },
+  {
+    "ref_no": "30617",
+    "subject": "ANTH",
+    "number": "027C",
+    "section_id": "01",
+    "title": "Ethnographies Contmp Latn Amer",
+    "credits": "1",
+    "distribution": [],
+    "enr_limit": 25,
+    "instructors": [],
+    "course_type": "Course",
+    "meeting_times": [
+      {
+        "days": [
+          "T",
+          "R"
+        ],
+        "start": "13:15:00",
+        "end": "14:30:00"
+      }
+    ],
+    "note": "",
+    "linked_sections": []
+  },
+  {
+    "ref_no": "19330",
+    "subject": "ENVS",
+    "number": "120",
+    "section_id": "A",
+    "title": "Environmental Econ Hnrs",
+    "credits": "1",
+    "distribution": [
+      "SS"
+    ],
+    "enr_limit": null,
+    "instructors": [
+      "Peck,Jennifer"
+    ],
+    "course_type": "Seminar1",
+    "meeting_times": [
+      {
+        "days": [
+          "M"
+        ],
+        "start": "13:15:00",
+        "end": "17:15:00"
+      }
+    ],
+    "note": "Double-graded Seminar. Both sections required.",
+    "linked_sections": []
+  },
+  {
+    "ref_no": "18511",
+    "subject": "CPSC",
+    "number": "031",
+    "section_id": "01",
+    "title": "Intro to Computer Systems",
+    "credits": "1",
+    "distribution": [
+      "NS",
+      "NSEP"
+    ],
+    "enr_limit": 18,
+    "instructors": [
+      "Newhall,Tia"
+    ],
+    "course_type": "Course",
+    "meeting_times": [
+      {
+        "days": [
+          "T",
+          "R"
+        ],
+        "start": "11:20:00",
+        "end": "12:35:00"
+      }
+    ],
+    "note": "Students must register for one Lab section A below.",
+    "linked_sections": [
+      {
+        "ref_no": "18512",
+        "subject": "CPSC",
+        "number": "031",
+        "section_id": "A",
+        "title": "Intro to Computer Systems-Lab",
+        "credits": "0",
+        "distribution": [],
+        "enr_limit": 18,
+        "instructors": [
+          "Newhall,Tia"
+        ],
+        "course_type": "Lab",
+        "meeting_times": [
+          {
+            "days": [
+              "W"
+            ],
+            "start": "10:30:00",
+            "end": "12:00:00"
+          }
+        ],
+        "note": "",
+        "linked_sections": []
+      }
+    ]
+  },
+  {
+    "ref_no": "30016",
+    "subject": "CPSC",
+    "number": "063",
+    "section_id": "01",
+    "title": "Artificial Intelligence",
+    "credits": "1",
+    "distribution": [
+      "NS",
+      "NSEP"
+    ],
+    "enr_limit": 36,
+    "instructors": [
+      "Hope,Gabriel"
+    ],
+    "course_type": "Course",
+    "meeting_times": [
+      {
+        "days": [
+          "M",
+          "W"
+        ],
+        "start": "09:00:00",
+        "end": "10:15:00"
+      }
+    ],
+    "note": "Students must register for lab section A or B below.",
+    "linked_sections": [
+      {
+        "ref_no": "30017",
+        "subject": "CPSC",
+        "number": "063",
+        "section_id": "A",
+        "title": "Artificial Intelligence-Lab",
+        "credits": "0",
+        "distribution": [],
+        "enr_limit": 18,
+        "instructors": [
+          "Hope,Gabriel"
+        ],
+        "course_type": "Lab",
+        "meeting_times": [
+          {
+            "days": [
+              "T"
+            ],
+            "start": "13:05:00",
+            "end": "14:35:00"
+          }
+        ],
+        "note": "",
+        "linked_sections": []
+      },
+      {
+        "ref_no": "30374",
+        "subject": "CPSC",
+        "number": "063",
+        "section_id": "B",
+        "title": "Artificial Intelligence-Lab",
+        "credits": "0",
+        "distribution": [],
+        "enr_limit": 18,
+        "instructors": [
+          "Hope,Gabriel"
+        ],
+        "course_type": "Lab",
+        "meeting_times": [
+          {
+            "days": [
+              "T"
+            ],
+            "start": "14:45:00",
+            "end": "16:15:00"
+          }
+        ],
+        "note": "",
+        "linked_sections": []
+      }
+    ]
+  },
+  {
+    "ref_no": "13503",
+    "subject": "ARAB",
+    "number": "001",
+    "section_id": "01",
+    "title": "Intensive Elem Mod Stan Arab",
+    "credits": "1.5",
+    "distribution": [
+      "HU"
+    ],
+    "enr_limit": 15,
+    "instructors": [
+      "Ahmed,Manal"
+    ],
+    "course_type": "Language Course",
+    "meeting_times": [
+      {
+        "days": [
+          "T",
+          "R"
+        ],
+        "start": "09:55:00",
+        "end": "11:10:00"
+      }
+    ],
+    "note": "Students must enroll in drill section A below.",
+    "linked_sections": [
+      {
+        "ref_no": "13505",
+        "subject": "ARAB",
+        "number": "001",
+        "section_id": "A",
+        "title": "Int Elem Mod Stan Arab-Drill",
+        "credits": "0",
+        "distribution": [],
+        "enr_limit": 15,
+        "instructors": [],
+        "course_type": "Drill",
+        "meeting_times": [
+          {
+            "days": [
+              "M",
+              "W",
+              "F"
+            ],
+            "start": "09:30:00",
+            "end": "10:20:00"
+          }
+        ],
+        "note": "",
+        "linked_sections": []
+      }
+    ]
+  },
+  {
+    "ref_no": "30456",
+    "subject": "ANTH",
+    "number": "122",
+    "section_id": "A",
+    "title": "Urban Ethnographies (M)",
+    "credits": "1",
+    "distribution": [
+      "SS"
+    ],
+    "enr_limit": 12,
+    "instructors": [
+      "Ghannam,Farha"
+    ],
+    "course_type": "Seminar1",
+    "meeting_times": [
+      {
+        "days": [
+          "W"
+        ],
+        "start": "13:15:00",
+        "end": "16:00:00"
+      }
+    ],
+    "note": "Double-graded seminar. Both sections required.",
+    "linked_sections": [
+      {
+        "ref_no": "30457",
+        "subject": "ANTH",
+        "number": "122",
+        "section_id": "B",
+        "title": "Urban Ethnographies (M)",
+        "credits": "1",
+        "distribution": [
+          "SS"
+        ],
+        "enr_limit": 12,
+        "instructors": [
+          "Ghannam,Farha"
+        ],
+        "course_type": "Seminar2",
+        "meeting_times": [
+          {
+            "days": [
+              "W"
+            ],
+            "start": "13:15:00",
+            "end": "16:00:00"
+          }
+        ],
+        "note": "Double-graded seminar. Both sections required.",
+        "linked_sections": []
+      }
+    ]
+  },
+  {
+    "ref_no": "30340",
+    "subject": "BIOL",
+    "number": "019",
+    "section_id": "01",
+    "title": "Omics",
+    "credits": "1",
+    "distribution": [
+      "NS",
+      "NSEP"
+    ],
+    "enr_limit": 24,
+    "instructors": [
+      "Kaplinsky,Nicholas"
+    ],
+    "course_type": "Course",
+    "meeting_times": [
+      {
+        "days": [
+          "T",
+          "R"
+        ],
+        "start": "09:55:00",
+        "end": "11:10:00"
+      }
+    ],
+    "note": "Students must register for lab section A or B below.",
+    "linked_sections": [
+      {
+        "ref_no": "30341",
+        "subject": "BIOL",
+        "number": "019",
+        "section_id": "A",
+        "title": "Omics-Lab",
+        "credits": "0",
+        "distribution": [],
+        "enr_limit": 12,
+        "instructors": [
+          "Kaplinsky,Nicholas"
+        ],
+        "course_type": "Lab",
+        "meeting_times": [
+          {
+            "days": [
+              "M"
+            ],
+            "start": "13:15:00",
+            "end": "16:15:00"
+          }
+        ],
+        "note": "",
+        "linked_sections": []
+      }
+    ]
+  },
+  {
+    "ref_no": "99999",
+    "subject": "TSTU",
+    "number": "099",
+    "section_id": "01",
+    "title": "Test NS+NSEP+W Course",
+    "credits": "1",
+    "distribution": [
+      "NS",
+      "NSEP",
+      "NSW",
+      "W"
+    ],
+    "enr_limit": 20,
+    "instructors": [
+      "Staff,Test"
+    ],
+    "course_type": "Course",
+    "meeting_times": [
+      {
+        "days": [
+          "M",
+          "W",
+          "F"
+        ],
+        "start": "09:30:00",
+        "end": "10:20:00"
+      }
+    ],
+    "note": "",
+    "linked_sections": []
+  }
+]
