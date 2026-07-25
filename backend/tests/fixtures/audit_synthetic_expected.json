@@ -1,0 +1,114 @@
+{
+  "name": "Student, Demo",
+  "student_id": "000000000",
+  "major": "Computer Science",
+  "class_year": 2025,
+  "catalog_year": "202304",
+  "credits_required": "32",
+  "credits_applied": "29.5",
+  "audit_date": "2026-06-01",
+  "completed_courses": [
+    {
+      "code": "MUSI 002B",
+      "title": "Music Basics",
+      "grade": "A-",
+      "credits": "1",
+      "term": "Fall 2025"
+    },
+    {
+      "code": "ECON 001",
+      "title": "Introduction to Economics",
+      "grade": "B+",
+      "credits": "1",
+      "term": "Fall 2024"
+    },
+    {
+      "code": "MATH 027",
+      "title": "Linear Algebra",
+      "grade": "CR",
+      "credits": "1",
+      "term": "Fall 2023"
+    },
+    {
+      "code": "MATH 035",
+      "title": "Several Variable Calc",
+      "grade": "B",
+      "credits": "1",
+      "term": "Spring 2024"
+    },
+    {
+      "code": "CPSC 035",
+      "title": "Data Structures and Algorithms",
+      "grade": "C",
+      "credits": "1",
+      "term": "Spring 2024"
+    },
+    {
+      "code": "CPSC 041",
+      "title": "Algorithms",
+      "grade": "B+",
+      "credits": "1",
+      "term": "Spring 2025"
+    }
+  ],
+  "preregistered_courses": [
+    {
+      "code": "CPSC 063",
+      "title": "Artificial Intelligence",
+      "grade": "----",
+      "credits": "1",
+      "term": "Fall 2026"
+    }
+  ],
+  "other_courses": [
+    {
+      "code": "CPSC 063",
+      "title": "Artificial Intelligence",
+      "grade": "----",
+      "credits": "1",
+      "term": "Fall 2026"
+    },
+    {
+      "code": "MUSI 041",
+      "title": "Performance Jazz",
+      "grade": "S",
+      "credits": "0",
+      "term": "Spring 2026"
+    },
+    {
+      "code": "ENGR 073",
+      "title": "Physical Electronics",
+      "grade": "W",
+      "credits": "0",
+      "term": "Fall 2025"
+    }
+  ],
+  "exempted_courses": [
+    "CPSC 021"
+  ],
+  "requirement_blocks": [
+    {
+      "name": "Degree in Bachelor of Arts",
+      "status": "INCOMPLETE",
+      "still_needed_text": "Complete 2.5 more credits and all graduation requirements. Distribution Requirements Still needed: See Distribution Requirements section"
+    },
+    {
+      "name": "Distribution Requirements",
+      "status": "INCOMPLETE",
+      "still_needed_text": ""
+    },
+    {
+      "name": "20 Credits Outside Major",
+      "status": "COMPLETE",
+      "still_needed_text": ""
+    },
+    {
+      "name": "Major in Computer Science",
+      "status": "INCOMPLETE",
+      "still_needed_text": ""
+    }
+  ],
+  "exceptions": [
+    "Apply CPSC 086 here."
+  ]
+}

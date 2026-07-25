@@ -14,7 +14,7 @@ The core engine is entirely deterministic. Algorithms decide which schedules are
 Version 1 supports **Swarthmore College only**. The architecture isolates Swarthmore-specific parsing and requirement definitions so the core engine can be reused for additional institutions later.
 
 **Target timeline:** One month with Claude Code as implementation partner.  
-**Feasibility:** High. The catalog is small (~310 schedulable parent sections), the audit is machine-generated with consistent structure, and the scheduling problem for a single semester is well within the capacity of a backtracking search.
+**Feasibility:** High. The catalog contains 310 rows of `Course Type == "Course"` and approximately 469 total parent sections when all supported parent types are included (Course, FY Seminar, Language Course, Seminar1, Studio Course, Workshop). The audit is machine-generated with consistent structure, and the scheduling problem for a single semester is well within the capacity of a backtracking search.
 
 ---
 
@@ -625,7 +625,13 @@ class ConstraintDiagnostic:
 - Warn if `Days` and `Times` have mismatched comma counts.
 - Warn if `Cr` is non-numeric and non-empty.
 
-**Test fixture:** `tests/fixtures/catalog_sample_10.csv` (10 rows covering Course, Lab, Drill, Language Course, double-graded seminar, multi-meeting lab). Corresponding `tests/fixtures/catalog_sample_10_expected.json`.
+**Test fixture:** `tests/fixtures/catalog_sample_10.csv` (16 rows covering Course, Lab, Drill, Language Course, double-graded seminar, multi-meeting lab). Corresponding `tests/fixtures/catalog_sample_10_expected.json`.
+
+**Observed catalog anomalies (Fall 2026):**
+- `Language Section` rows are linked as children of `Language Course` parents — they are treated as a child type in the parser alongside Lab, Drill, Attachment, Seminar2.
+- Four PHYS Lab rows (PHYS 063, 081, 082, 083) are credit-bearing standalone labs with no corresponding parent Course in the same semester. They are logged as orphan children and excluded from parser output. Whether credit-bearing standalone labs should become schedulable parents is deferred until solver design or advisor confirmation.
+- One Attachment row (ANCH 042A) has a different course number (042A) than its apparent parent (042), preventing automatic linking. It is treated as an orphan child.
+- Workshop2 and Teaching2 rows exist in the catalog but are neither parent nor child types. They are parsed and dropped with a warning.
 
 ---
 

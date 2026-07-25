@@ -1,0 +1,24 @@
+# Sensitive local data files — never commit
+degreeauditexample.pdf
+fall_2026.csv
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.env.*
+
+# Node
+node_modules/
+.next/
+
+# OS
+.DS_Store
+Thumbs.db

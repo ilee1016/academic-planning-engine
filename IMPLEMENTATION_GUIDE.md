@@ -134,7 +134,7 @@ The most dangerous thing in this project is starting with FastAPI routes before 
 
 **Acceptance criteria:**
 - `pytest tests/test_catalog_parser.py` passes golden file test
-- `parse_catalog(fall_2026.csv)` returns exactly 310 parent sections
+- `parse_catalog(fall_2026.csv)` returns approximately 469 parent sections (310 `Course`-type + 30 FY Seminar + 32 Language Course + 35 Seminar1 + 41 Studio Course + 21 Workshop). The "310" figure referred only to `Course Type == "Course"` rows; all six `is_parent` types are included.
 - CPSC 031 has one lab linked in `linked_sections`
 - CPSC 063 has three lab options linked in `linked_sections`
 - ARAB 001 (Language Course) has a drill linked in `linked_sections`
@@ -529,7 +529,7 @@ async def explain_schedule(input: ExplainerInput) -> str:
 | S1-4 | Write `MeetingTime.conflicts_with()` unit tests | All 5 conflict scenarios pass |
 | S1-5 | Write `parsers/catalog.py` | `pytest test_catalog_parser.py` passes golden file |
 | S1-6 | Create `tests/fixtures/catalog_sample_10.csv` and expected JSON | Fixture covers all edge cases |
-| S1-7 | Verify `parse_catalog(fall_2026.csv)` returns 310 parent sections | Manual count confirms |
+| S1-7 | Verify `parse_catalog(fall_2026.csv)` returns ~469 parent sections (all `is_parent` types) | Manual count confirms; 5 orphan children warned |
 
 **End of Sprint 1 checkpoint:** Can parse the catalog and inspect normalized `CourseSection` objects in a Python shell.
 
