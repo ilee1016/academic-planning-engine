@@ -16,9 +16,11 @@ import pytest
 
 from app.parsers.audit import (
     AuditParseError,
+    _attempt_key,
     _parse_credit,
     _parse_exemptions,
     _parse_header,
+    _reconcile_course_classification,
     _try_parse_course_line,
     _parse_audit_text,
     parse_audit,
@@ -722,6 +724,18 @@ class TestIntegratedSyntheticAudit:
         other = {c.code for c in rec.other_courses}
         assert "ENGR 073" in other or "MUSI 041" in other
 
+    def test_preregistered_not_duplicated_in_other(self) -> None:
+        rec = self._record()
+        other = {c.code for c in rec.other_courses}
+        prereg = {c.code for c in rec.preregistered_courses}
+        # CPSC 063 appears in Additional Courses AND Preregistered in _FULL_SYNTHETIC;
+        # after reconciliation it must only be in preregistered_courses
+        assert "CPSC 063" in prereg
+        assert "CPSC 063" not in other
+
+    def test_no_cross_list_duplicate_attempts(self) -> None:
+        assert_no_cross_list_duplicate_attempts(self._record())
+
     def test_exempted_courses(self) -> None:
         assert "CPSC 021" in self._record().exempted_courses
 
@@ -754,6 +768,211 @@ class TestIntegratedSyntheticAudit:
         assert isinstance(rec.credits_applied, Decimal)
         for c in rec.completed_courses + rec.preregistered_courses + rec.other_courses:
             assert isinstance(c.credits, Decimal)
+
+
+# ---------------------------------------------------------------------------
+# Assertion helper
+# ---------------------------------------------------------------------------
+
+
+def assert_no_cross_list_duplicate_attempts(student: StudentRecord) -> None:
+    """Assert that no course attempt (code, term, grade, credits) appears in
+    more than one of completed_courses, preregistered_courses, other_courses.
+    """
+    seen: dict[tuple[str, str, str, str], str] = {}
+    for label, lst in [
+        ("completed", student.completed_courses),
+        ("preregistered", student.preregistered_courses),
+        ("other", student.other_courses),
+    ]:
+        for c in lst:
+            key = _attempt_key(c)
+            if key in seen:
+                raise AssertionError(
+                    f"Attempt {key} appears in both {seen[key]!r} and {label!r}"
+                )
+            seen[key] = label
+
+
+# ---------------------------------------------------------------------------
+# Reconciliation tests
+# ---------------------------------------------------------------------------
+
+
+def _make_course(
+    code: str,
+    term: str,
+    grade: str = "B",
+    credits: str = "1",
+    title: str = "",
+) -> CompletedCourse:
+    return CompletedCourse(
+        code=code, term=term, grade=grade, credits=Decimal(credits), title=title
+    )
+
+
+class TestReconciliation:
+    """Tests for _reconcile_course_classification() and its integration
+    inside _parse_audit_text()."""
+
+    # --- Direct unit tests of the reconciliation function ---
+
+    def test_preregistered_attempt_removed_from_completed(self) -> None:
+        c = _make_course("PHED 002B", "Fall 2026", "----", "0")
+        completed, preregistered, other = _reconcile_course_classification(
+            [c], [c], []
+        )
+        assert c not in completed
+        assert c in preregistered
+
+    def test_other_attempt_removed_from_completed(self) -> None:
+        c = _make_course("CPSC 063", "Fall 2026", "----", "1")
+        completed, preregistered, other = _reconcile_course_classification(
+            [c], [], [c]
+        )
+        assert c not in completed
+        assert c in other
+
+    def test_preregistered_attempt_removed_from_other(self) -> None:
+        c = _make_course("CPSC 063", "Fall 2026", "----", "1")
+        completed, preregistered, other = _reconcile_course_classification(
+            [], [c], [c]
+        )
+        assert c in preregistered
+        assert c not in other
+
+    def test_distinct_retake_preserved_in_both_lists(self) -> None:
+        """Historical (completed) and new attempt (preregistered) coexist."""
+        historical = _make_course("CPSC 031", "Fall 2023", "CR", "1")
+        retake = _make_course("CPSC 031", "Fall 2026", "----", "1")
+        completed, preregistered, other = _reconcile_course_classification(
+            [historical], [retake], []
+        )
+        assert historical in completed
+        assert retake in preregistered
+
+    def test_same_code_two_completed_terms_both_remain(self) -> None:
+        fall = _make_course("MATH 027", "Fall 2023", "CR", "1")
+        spring = _make_course("MATH 027", "Spring 2023", "B", "1")
+        completed, preregistered, other = _reconcile_course_classification(
+            [fall, spring], [], []
+        )
+        assert fall in completed
+        assert spring in completed
+
+    def test_source_order_preserved(self) -> None:
+        a = _make_course("CPSC 035", "Spring 2024", "C", "1", "Data Structures")
+        b = _make_course("MATH 027", "Fall 2023", "CR", "1", "Linear Algebra")
+        c = _make_course("ECON 001", "Fall 2024", "B+", "1", "Intro Econ")
+        completed, _, _ = _reconcile_course_classification([a, b, c], [], [])
+        assert completed == [a, b, c]
+
+    # --- Integration tests via _parse_audit_text() ---
+
+    def test_preregistered_in_block_not_in_completed(self) -> None:
+        """Course rendered inside a requirement block AND in Preregistered
+        must appear only in preregistered_courses after reconciliation."""
+        text = _VALID_HEADER + """\
+
+Degree in Bachelor of Arts
+INCOMPLETE
+Still needed: Done.
+
+Distribution Requirements
+INCOMPLETE
+
+PHED 002B Fitness Training ---- (0) Fall 2026
+
+Preregistered
+Credits: 0 Courses: 1
+Course Title Grade Credits Term Repeated
+PHED 002B Fitness Training ---- (0) Fall 2026
+"""
+        rec = _parse_audit_text(text)
+        assert_no_cross_list_duplicate_attempts(rec)
+        phed_completed = [c for c in rec.completed_courses if c.code == "PHED 002B"]
+        phed_prereg = [c for c in rec.preregistered_courses if c.code == "PHED 002B"]
+        assert phed_completed == [], "PHED 002B should not be in completed_courses"
+        assert len(phed_prereg) == 1
+
+    def test_other_course_not_in_completed(self) -> None:
+        """Course in Additional Courses must not appear in completed_courses
+        even if the same row appears inside a requirement block."""
+        text = _VALID_HEADER + """\
+
+Degree in Bachelor of Arts
+INCOMPLETE
+Still needed: Done.
+
+CPSC 063 Artificial Intelligence ---- (1) Fall 2026
+
+Additional Courses
+Credits: 1 Courses: 1
+Course Title Grade Credits Term Repeated
+CPSC 063 Artificial Intelligence ---- (1) Fall 2026
+"""
+        rec = _parse_audit_text(text)
+        assert_no_cross_list_duplicate_attempts(rec)
+        in_completed = any(c.code == "CPSC 063" for c in rec.completed_courses)
+        in_other = any(c.code == "CPSC 063" for c in rec.other_courses)
+        assert not in_completed, "CPSC 063 should not be in completed_courses"
+        assert in_other
+
+    def test_historical_completed_and_preregistered_retake_both_present(self) -> None:
+        """Different term = distinct attempt; both should survive reconciliation."""
+        text = _VALID_HEADER + """\
+
+Degree in Bachelor of Arts
+INCOMPLETE
+Still needed: Done.
+
+CPSC 031 Intro to Computer Systems CR 1 Fall 2023
+
+Preregistered
+Credits: 1 Courses: 1
+Course Title Grade Credits Term Repeated
+CPSC 031 Intro to Computer Systems ---- (1) Fall 2026
+"""
+        rec = _parse_audit_text(text)
+        assert_no_cross_list_duplicate_attempts(rec)
+        completed_031 = [c for c in rec.completed_courses if c.code == "CPSC 031"]
+        prereg_031 = [c for c in rec.preregistered_courses if c.code == "CPSC 031"]
+        assert len(completed_031) == 1, "historical CR attempt should remain completed"
+        assert completed_031[0].grade == "CR"
+        assert completed_031[0].term == "Fall 2023"
+        assert len(prereg_031) == 1, "retake should be in preregistered"
+        assert prereg_031[0].grade == "----"
+
+    def test_integrated_no_cross_list_duplicates(self) -> None:
+        """The full synthetic audit fixture must have no duplicate attempts."""
+        rec = _parse_audit_text(_FULL_SYNTHETIC)
+        assert_no_cross_list_duplicate_attempts(rec)
+
+    def test_preregistered_in_additional_not_in_other(self) -> None:
+        """Course in both Additional Courses and Preregistered appears only in
+        preregistered_courses after reconciliation (preregistered > other)."""
+        text = _VALID_HEADER + """\
+
+Degree in Bachelor of Arts
+INCOMPLETE
+Still needed: Done.
+
+Additional Courses
+Credits: 1 Courses: 1
+Course Title Grade Credits Term Repeated
+CPSC 063 Artificial Intelligence ---- (1) Fall 2026
+
+Preregistered
+Credits: 1 Courses: 1
+Course Title Grade Credits Term Repeated
+CPSC 063 Artificial Intelligence ---- (1) Fall 2026
+"""
+        rec = _parse_audit_text(text)
+        assert_no_cross_list_duplicate_attempts(rec)
+        in_other = any(c.code == "CPSC 063" for c in rec.other_courses)
+        in_prereg = any(c.code == "CPSC 063" for c in rec.preregistered_courses)
+        assert not in_other, "preregistered takes precedence over other"
+        assert in_prereg
 
 
 # ---------------------------------------------------------------------------

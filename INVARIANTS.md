@@ -145,6 +145,9 @@ The `POST /api/session` response contains only a sanitized student summary (name
 
 ## Privacy
 
+**INV-35a** A single course attempt may appear in only one `StudentRecord` classification list.  
+`completed_courses`, `preregistered_courses`, and `other_courses` are mutually exclusive with respect to course attempts. A repeated Degree Works rendering of the same attempt (same code, term, grade, and credits) is reconciled using section precedence: `preregistered_courses` > `other_courses` > `completed_courses`. Distinct attempts of the same course code — identified by a different term, grade, or credits — remain separate and may each appear in any list appropriate to their provenance.
+
 **INV-35** The real degree audit PDF (`degreeauditexample.pdf`) must never be committed to git.  
 It is listed in `.gitignore`. All test fixtures use `audit_anonymized.pdf` or synthetic data. This invariant exists because the file contains real student PII including name and student ID.
 

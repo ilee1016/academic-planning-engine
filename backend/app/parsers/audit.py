@@ -406,6 +406,48 @@ def _dedup_courses(courses: list[CompletedCourse]) -> list[CompletedCourse]:
     return out
 
 
+def _attempt_key(c: CompletedCourse) -> tuple[str, str, str, str]:
+    """Identity key for cross-list reconciliation: (code, term, grade, credits).
+
+    Title is excluded because Degree Works can abbreviate titles differently
+    across blocks for the same course attempt.
+    """
+    return (c.code, c.term, c.grade, str(c.credits))
+
+
+def _reconcile_course_classification(
+    completed: list[CompletedCourse],
+    preregistered: list[CompletedCourse],
+    other: list[CompletedCourse],
+) -> tuple[list[CompletedCourse], list[CompletedCourse], list[CompletedCourse]]:
+    """Apply section precedence so each attempt appears in exactly one list.
+
+    Precedence: preregistered > other > completed.
+
+    A course attempt is identified by (code, term, grade, credits).  Title is
+    excluded from the key because Degree Works can render it differently across
+    blocks.  Distinct attempts of the same course code (different term, grade,
+    or credits) are preserved in their respective lists.
+
+    Source order within each list is preserved; no sorting is applied.
+    """
+    preregistered_keys = {_attempt_key(c) for c in preregistered}
+    other_keys = {_attempt_key(c) for c in other}
+
+    # Remove from completed any attempt present in a higher-precedence list
+    new_completed = [
+        c for c in completed
+        if _attempt_key(c) not in preregistered_keys
+        and _attempt_key(c) not in other_keys
+    ]
+    # Remove from other any attempt present in preregistered
+    new_other = [
+        c for c in other
+        if _attempt_key(c) not in preregistered_keys
+    ]
+    return new_completed, preregistered, new_other
+
+
 # ---------------------------------------------------------------------------
 # Requirement block extraction
 # ---------------------------------------------------------------------------
@@ -649,31 +691,30 @@ def _parse_audit_text(text: str) -> StudentRecord:
     if additional_start is not None:
         other_raw.extend(_extract_courses_from_lines(_get_lines("Additional Courses")))
     if not_applied_start is not None:
-        key = (
+        not_applied_key = (
             "Courses Not Applied (INCs, NCs, Ws and Repeats)"
             if "Courses Not Applied (INCs, NCs, Ws and Repeats)" in section_positions
             else "Courses Not Applied"
         )
-        other_raw.extend(_extract_courses_from_lines(_get_lines(key)))
-
-    # Deduplicate and remove any already in completed_courses
-    completed_keys: set[tuple[str, str, str, str]] = {
-        (c.code, c.grade, str(c.credits), c.term) for c in completed_courses
-    }
-    other_courses = _dedup_courses(
-        [
-            c
-            for c in other_raw
-            if (c.code, c.grade, str(c.credits), c.term) not in completed_keys
-        ]
-    )
+        other_raw.extend(_extract_courses_from_lines(_get_lines(not_applied_key)))
+    other_courses_raw = _dedup_courses(other_raw)
 
     # --- Extract preregistered courses ---
-    preregistered_courses: list[CompletedCourse] = []
+    preregistered_courses_raw: list[CompletedCourse] = []
     if preregistered_start is not None:
-        preregistered_courses = _dedup_courses(
+        preregistered_courses_raw = _dedup_courses(
             _extract_courses_from_lines(_get_lines("Preregistered"))
         )
+
+    # --- Reconcile: each attempt appears in exactly one list ---
+    # Precedence: preregistered > other > completed.
+    # Degree Works repeats preregistered rows inside requirement blocks;
+    # reconciliation ensures these do not also appear as completed.
+    completed_courses, preregistered_courses, other_courses = (
+        _reconcile_course_classification(
+            completed_courses, preregistered_courses_raw, other_courses_raw
+        )
+    )
 
     # --- Extract requirement blocks ---
     requirement_blocks = _extract_requirement_blocks(lines)
