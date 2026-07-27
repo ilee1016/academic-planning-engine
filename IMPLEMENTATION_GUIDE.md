@@ -235,21 +235,25 @@ The real `degreeauditexample.pdf` must NOT be committed. To create the anonymize
 
 `adapters/swarthmore/requirement_defs.py`:
 ```python
-def get_requirement_items(student: StudentRecord) -> list[RequirementItem]:
-    """Return RequirementItems matching the student's major and catalog_year."""
+def get_requirement_definitions(student: StudentRecord) -> list[RequirementDefinition]:
+    """Return RequirementDefinitions matching the student's major and catalog_year.
+
+    Raises UnsupportedProgramError for unrecognized (major, catalog_year) combinations.
+    Returns fresh objects on every call.
+    """
     ...
 ```
-Returns a list of `RequirementItem` objects for the student's combination of `(major, catalog_year)`. For CS major + catalog year 202304, returns the four items documented in BASELINE.md Section 9.
+Returns a list of `RequirementDefinition` objects (from `models.py`) for the student's `(major, catalog_year)`. Each definition pairs a `RequirementItem` with `block_patterns` — the Degree Works block name substrings that establish its `satisfied` state. For CS major + catalog year 202304, returns the four items documented in BASELINE.md Section 9. Swarthmore-specific block name aliases live here, not in `core/`.
 
 `core/requirements.py`:
 ```python
 def build_requirement_status(
     student: StudentRecord,
-    requirement_items: list[RequirementItem],
+    definitions: list[RequirementDefinition],
 ) -> RequirementStatus:
     ...
 ```
-For each `RequirementItem`, checks the student's `requirement_blocks` to determine `satisfied`. Returns `RequirementStatus`.
+For each `RequirementDefinition`, matches `block_patterns` against the student's parsed `requirement_blocks` (case-insensitive normalized substring). Sets `satisfied` based on the matched block's Degree Works status. Degree Works is authoritative; transcript courses are never used to infer satisfaction. Emits `UserWarning` for unmatched definitions (item stays `satisfied=False`). Raises `RequirementEvaluationError` if a definition's patterns match multiple blocks.
 
 `RequirementStatus.items_satisfied_by(section)`:
 ```python

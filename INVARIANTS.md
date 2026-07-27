@@ -17,6 +17,9 @@ Parsers normalize raw data into domain model objects. Filtering, evaluation, con
 **INV-03** `adapters/` never invokes engine logic.  
 Adapters define data (requirement definitions, parser output format). They do not call `core/requirements.py`, `core/solver.py`, or `core/ranker.py`.
 
+**INV-03a** `RequirementDefinition` is defined in `models.py`, not in `adapters/`.  
+`RequirementDefinition` is a generic pair of `(RequirementItem, block_patterns)`. The adapter `adapters/swarthmore/requirement_defs.py` creates instances of it with Swarthmore-specific block name aliases; `core/requirements.py` accepts `list[RequirementDefinition]` without importing from any adapter. This keeps Swarthmore block names out of core while keeping the type itself importable by both layers.
+
 **INV-04** `main.py` is the only file that reads environment variables or performs file I/O.  
 All downstream components receive data through function arguments. A component that reads `os.environ` directly (except `main.py`) has violated this invariant.
 

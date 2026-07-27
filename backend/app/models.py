@@ -156,6 +156,19 @@ class RequirementItem:
     auto_registered: bool = False        # True → exclude from candidate pool entirely
 
 
+@dataclass(frozen=True)
+class RequirementDefinition:
+    """Pairs a RequirementItem with the Degree Works block name patterns that establish its status.
+
+    Produced by adapters (e.g. adapters/swarthmore/requirement_defs.py); consumed by
+    core/requirements.py. block_patterns are Degree Works block name substrings checked
+    case-insensitively after normalization. Each pattern must match at most one block.
+    """
+
+    item: RequirementItem
+    block_patterns: tuple[str, ...]
+
+
 @dataclass
 class RequirementStatus:
     """Derived from StudentRecord. Tells the ranker what remains and how to score schedules."""

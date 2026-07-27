@@ -501,6 +501,17 @@ class RequirementItem:
     subject_predicate: str | None = None # subject where ANY 1-credit course satisfies this (e.g. "CPSC")
     auto_registered: bool = False        # True = item is auto-registered; exclude from candidate pool and solver
 
+@dataclass(frozen=True)
+class RequirementDefinition:
+    """Pairs a RequirementItem with Degree Works block name patterns.
+
+    Produced by adapters; consumed by core/requirements.py.
+    block_patterns are case-insensitive substrings matched against normalized DW block names.
+    The adapter owns the Swarthmore-specific aliases; core never imports adapter strings.
+    """
+    item: RequirementItem
+    block_patterns: tuple[str, ...]
+
 @dataclass
 class RequirementStatus:
     items: list[RequirementItem]
