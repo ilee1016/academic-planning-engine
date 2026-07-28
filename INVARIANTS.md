@@ -100,8 +100,11 @@ Ranking adds `score`, `score_breakdown`, `category`, and `requirement_gains` to 
 **INV-23a** `Schedule` contains only selected sections and credit total.  
 `Schedule.parent_sections`, `Schedule.lab_sections`, and `Schedule.total_credits` are the complete contents of a solver-produced schedule. There is no `requirement_gains` field on `Schedule`. Requirement analysis belongs to `RankedSchedule`, produced by the ranker.
 
-**INV-24** Three archetypes are selected from distinct scoring objectives.  
-`"requirements"`, `"preferences"`, and `"balanced"` are computed from different primary sort keys as defined in Section 11 of BASELINE.md. They are not three instances of the same scoring function with different weights.
+**INV-23b** `RankedSchedule.explanation` is always `""` after ranking.  
+The AI explainer (`core/explainer.py`) is called after `rank_schedules()` returns and populates `explanation` on each `RankedSchedule`. The ranker itself must never generate or assign explanation text.
+
+**INV-24** Three archetypes presented to the user are selected from distinct categories.  
+`rank_schedules()` assigns one category label per schedule and returns ALL ranked schedules. The orchestration layer (`main.py`) selects three schedules with distinct categories from the ranked list for the API response. Category labels are: `requirements_first`, `preferred_subjects`, `compact_schedule`, `balanced`, `current_registration`. The ranker and orchestrator together ensure the three returned schedules differ by archetype; they are not three instances of the same scoring function with different weights.
 
 **INV-25** No two returned schedules are identical.  
 If the top candidates from two archetypes are the same schedule, the lower-ranked duplicate is replaced with the next distinct candidate from that archetype. The three returned schedules always differ by at least one course.

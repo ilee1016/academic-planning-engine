@@ -842,73 +842,98 @@ Returns one `Schedule` containing only the locked sections. The ranker or orches
 
 ## 11. Ranking and Recommendation Strategy
 
-### Scoring Dimensions
+**Note:** `rank_schedules()` in `core/ranker.py` ranks ALL solver-supplied schedules and returns them in order. It does NOT select exactly three archetypes — that selection happens in the orchestration layer (`main.py`). The ranker assigns one category label to every ranked schedule, and the orchestrator picks three distinct archetypes from the ranked list.
 
-All dimensions are normalized to 0–100.
+**Capped-solver limitation:** `rank_schedules()` operates on the solver's capped output (up to `max_results=500` schedules). It guarantees the best ordering **among the schedules provided by the solver**, not the globally best schedules from the complete feasible set.
 
-**Requirement Coverage (0–100):**  
-`(number of RequirementItems satisfied / total incomplete RequirementItems) × 100`  
-Weighted more heavily than other dimensions in the "requirements" archetype.
+### Requirement Gains Semantics
 
-**Preference Match (0–100):**  
-Sum of soft preference scores:
-- +20 for each preferred subject represented
-- +20 if all free days are respected (already enforced as a hard constraint if specified, but applies here when free days are a soft preference)
-- +30 if no class starts before `earliest_start` (when earliest_start is a preference, not a hard cutoff)
-- +10 for each preferred course code included
-- –10 for each day on campus beyond the minimum needed (favor compact week)
+`RankedSchedule.requirement_gains` contains the unsatisfied `RequirementItem` objects that at least one parent section in the schedule would advance. This means:
 
-**Workload Balance (0–100):**  
-Measures how evenly meeting times are distributed across the week.
-- +40 if no single day has more than 2 consecutive hours of class
-- +30 if daily class hours are within 1 hour of each other across days with class
-- +30 if longest gap between classes on any day is under 2 hours
+- **"Requirements addressed by this schedule"** — not "requirements guaranteed completed"
+- A schedule containing one CPSC course **gains** `cs_cpsc_credits` but does not mark it as fully satisfied (two CPSC credits are needed; one course contributes one)
+- Each item appears at most once regardless of how many sections match it
+- Items are in `RequirementStatus.items` order; auto-registered and already-satisfied items are excluded
 
-**Credits Target (0–20):**  
-+20 if total credits exactly matches `max_credits`. –5 for each 0.5 credits below `min_credits` (above max is a hard constraint; no schedule exceeds `max_credits`).
+### Scoring Formula (additive, not normalized)
 
-### Archetype Definitions
+The total score is the sum of five named components. All comparison-sensitive arithmetic uses `Decimal` before converting to `float`.
 
-| Archetype | Primary Sort | Secondary Sort |
-|-----------|-------------|----------------|
-| `requirements` | requirement_coverage DESC | preference_match DESC |
-| `preferences` | preference_match DESC | workload_balance DESC |
-| `balanced` | workload_balance DESC | requirement_coverage DESC |
+**Component 1 — Requirement gains:**  
+`+100 × (number of unique unsatisfied RequirementItems addressed)`
 
-### Diversity Enforcement
+**Component 2 — Preferred subjects:**  
+For each parent section whose subject appears in `preferences.preferred_subjects`:
+- Position 0 (first) → +12
+- Position 1 → +9
+- Position 2 → +6
+- Position 3 or later → +3
 
-After selecting the top schedule from each archetype, check pairwise overlap: if any two of the three selected schedules share more than 2 of the same parent course codes, replace the lower-ranked duplicate with the next candidate from that archetype that improves diversity. This ensures the three recommendations offer meaningfully different options.
+Linked lab/drill sections never receive subject preference points.
 
-### Example Output Structure (3 Schedules)
+**Component 3 — Incidental free days:**  
+`+5 × (weekdays not used by any meeting AND not in preferences.free_days)`  
+Days explicitly listed in `preferences.free_days` are not double-counted here.
 
-```json
-[
-  {
-    "category": "requirements",
-    "score": 84.0,
-    "score_breakdown": {
-      "requirement_coverage": 100,
-      "preference_match": 60,
-      "workload_balance": 72,
-      "credits_target": 20
-    },
-    "requirement_gains": ["cs_cpsc031", "cs_cpsc_credits", "writing_hu_or_ns"],
-    "explanation": "",
-    "courses": [
-      {"code": "CPSC 031", "title": "Intro to Computer Systems", "credits": "1", "days": "TR", "time": "11:20am–12:35pm",
-       "lab": {"days": "W", "time": "10:30am–12:00pm"}},
-      {"code": "ENGL 011", "title": "Comedy", "credits": "1", "days": "TR", "time": "11:20am–12:35pm", "lab": null}
-    ]
-  },
-  {
-    "category": "preferences",
-    "..."
-  },
-  {
-    "category": "balanced",
-    "..."
-  }
-]
+**Component 4 — Compactness:**  
+Based on total weekly idle minutes between consecutive meetings on the same day. Time before the first meeting, after the last, and between different days is excluded.
+
+| Total weekly idle minutes | Score |
+|--------------------------|-------|
+| 0                        | +20   |
+| 1–60                     | +15   |
+| 61–120                   | +10   |
+| 121–240                  | +5    |
+| > 240                    | +0    |
+
+**Component 5 — Credit load:**  
+Target = `preferences.max_credits`. Comparison uses `Decimal`.
+
+| Distance from target | Score |
+|---------------------|-------|
+| Exactly target      | +10   |
+| ≤ 0.5 credits away  | +6    |
+| ≤ 1.0 credit away   | +3    |
+| > 1.0 credit away   | +0    |
+
+### Category Labels
+
+One category is assigned per `RankedSchedule`. Precedence (first match wins):
+
+1. **`current_registration`** — every section's `ref_no` exactly matches the `locked_ref_nos` set (non-empty)
+2. **`requirements_first`** — 2 or more unique requirement items would be gained
+3. **`preferred_subjects`** — preferred-subject score > 0 and ≥ (compactness + free-day) score
+4. **`compact_schedule`** — (compactness + free-day) score > preferred-subject score, AND schedule uses ≤ 3 weekdays OR has 0 idle minutes
+5. **`balanced`** — fallback
+
+Category assignment never affects the numerical score.
+
+### Deterministic Tie-Breaking Sort
+
+When two schedules have equal score, they are ordered by:
+
+1. Score descending
+2. `len(requirement_gains)` descending
+3. `total_credits` descending
+4. Weekly idle minutes ascending
+5. Number of used weekdays ascending
+6. Canonical key ascending: `tuple(sorted(ref_no for ref_no in schedule.all_sections))`
+
+### Explanation Field
+
+`RankedSchedule.explanation` is always `""` after ranking. The AI explainer (`core/explainer.py`) populates it after the deterministic engine is complete.
+
+### Example score_breakdown Keys
+
+```python
+{
+    "requirement_gains": 200.0,   # 2 items × 100
+    "preferred_subjects": 12.0,   # 1 preferred subject at position 0
+    "free_days": 15.0,            # 3 incidental free days × 5
+    "compactness": 20.0,          # zero idle time
+    "credit_load": 10.0,          # exactly at max_credits
+}
+# total score = 257.0
 ```
 
 Note: `requirement_gains` is a field of `RankedSchedule` (computed by the ranker). The API serializer exposes it at the top level of each schedule object in the JSON response. The `courses` array nests labs inside their parent course object (not a separate flat array). Credits are serialized as strings.
@@ -959,9 +984,24 @@ class ConstraintDiagnostic:
 }
 ```
 
-**When to generate:** Run the diagnostic generator if:
-1. The solver returns 0 schedules.
-2. Any `RequirementItem` has zero catalog sections that could satisfy it in the current semester (check at filter time).
+**When to generate:** Run `diagnose_no_schedules()` only when `generate_schedules()` returns an empty list. Do not call it when schedules exist.
+
+**Probe strategy:** `diagnose_no_schedules()` uses controlled re-evaluation of hard constraints (not natural-language inference). Probes call `generate_schedules(max_results=1)` with modified `Preferences` copies (`dataclasses.replace()`; never mutating the original). Time-constraint probes (free_days, earliest_start, latest_end) require `candidate_sections` to re-expand options under relaxed preferences — because those constraints are applied in `filter_candidates` / `expand_selection_options`, not in `generate_schedules` itself.
+
+**Diagnostic priority order:**
+1. Locked credits exceed max_credits
+2. No options in pool
+3. Minimum credits mathematically unreachable
+4. Every option individually exceeds max_credits
+5. Locked sections conflict with each other
+6. Every eligible option conflicts with locked sections
+7. Free-day constraint (probe via candidate_sections re-expansion)
+8. Earliest-start constraint (probe via candidate_sections re-expansion)
+9. Latest-end constraint (probe via candidate_sections re-expansion)
+10. Credit bounds too tight (probe with bounded relaxations)
+11. Fallback: general constraint message
+
+Diagnostics identify **likely binding constraints**, not a mathematically proven minimal unsatisfiable core.
 
 ---
 

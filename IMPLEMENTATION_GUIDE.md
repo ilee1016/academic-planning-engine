@@ -350,7 +350,7 @@ def test_no_schedule_has_conflict(sections, preferences):
 
 ---
 
-### Stage 5 — Ranking (`core/ranker.py`, `core/diagnostics.py`)
+### Stage 5 — Ranking (`core/ranking.py`, `core/diagnostics.py`)
 
 **Why after solver:** The ranker is a consumer of solver output. The solver must produce real schedules before the scoring functions can be validated against real data.
 
@@ -358,34 +358,49 @@ def test_no_schedule_has_conflict(sections, preferences):
 
 **Dependencies:** Stages 0, 3, 4.
 
-**What to implement:**
+**What was implemented:**
 
-`core/ranker.py`:
+`core/ranking.py`:
 ```python
 def rank_schedules(
     schedules: list[Schedule],
     requirement_status: RequirementStatus,
     preferences: Preferences,
+    *,
+    locked_ref_nos: frozenset[str] = frozenset(),
+    max_ranked: int | None = None,
 ) -> list[RankedSchedule]:
 ```
-For each `Schedule`, the ranker calls `requirement_status.items_satisfied_by(section)` for every parent section and stores the deduplicated result in `RankedSchedule.requirement_gains`. This is the only place requirement gains are computed — the solver never touches requirements. Score each schedule on all four dimensions (requirement coverage, preference match, workload balance, credits target). Select three archetypes using the primary/secondary sort keys from BASELINE.md Section 11. Apply diversity enforcement.
+For each `Schedule`, computes `requirement_gains` by calling `requirement_status.items_satisfied_by(section)` for every parent section (deduplicated, in items order). Scores five named components (requirement_gains, preferred_subjects, free_days, compactness, credit_load). Assigns one category label per schedule. Returns all ranked schedules sorted by (score DESC, gains DESC, credits DESC, idle ASC, used_days ASC, canonical_key ASC). Three-archetype selection is the orchestration layer's responsibility (`main.py`), not the ranker's. `explanation` is always `""`.
 
 `core/diagnostics.py`:
 ```python
-def build_diagnostic(
-    candidates: list[CourseSection],
+def diagnose_no_schedules(
+    *,
+    options: list[SelectionOption],
     locked_sections: list[CourseSection],
-    requirement_status: RequirementStatus,
     preferences: Preferences,
+    candidate_sections: list[CourseSection] | None = None,
 ) -> ConstraintDiagnostic:
 ```
-Called only when `generate_schedules()` returns an empty list. Analyzes the candidate pool to produce human-readable reasons and suggested relaxations.
+Called only when `generate_schedules()` returns an empty list. Checks 11 priority-ordered conditions (see BASELINE.md Section 12). Probes use `generate_schedules(max_results=1)` with modified `Preferences` copies. Time-constraint probes require `candidate_sections` to re-expand options under relaxed preferences.
+
+**Full-catalog statistics (Fall 2026, CS junior demo student, lock_preregistered=True, free_days=["F"]):**
+- Solver schedules ranked: 500
+- Top score: 351.0, lowest score: 254.0
+- All 500 schedules had 2+ requirement gains → all labelled `requirements_first`
+- Highest weekly idle: 1470 min, lowest: 55 min
+- Unique score values: 5
+- Ranking runtime: ~5 ms; total pipeline (filter→rank): ~17 ms
+- Repeated ranking: deterministic ✓; score == sum(breakdown) for all ✓
 
 **Acceptance criteria:**
-- For demo student with requirement-maximizing preferences: `"requirements"` archetype schedule satisfies more `RequirementItem` objects than the other two
-- With `free_days=["F"]`, no returned schedule has Friday classes (preference already enforced as hard filter, verify here)
-- No two of the three returned schedules are identical (same parent course code sets)
-- When solver returns 0 schedules: diagnostic is non-null, has at least one reason, has at least one suggested relaxation
+- When solver returns 0 schedules: diagnostic is non-null, has at least one reason, has at least one suggested relaxation aligned with the reason
+- All five score_breakdown keys present in every RankedSchedule
+- score == sum(score_breakdown.values()) for every RankedSchedule
+- explanation == "" for every RankedSchedule
+- rank_schedules never mutates Schedule, RequirementStatus, or Preferences inputs
+- 413/413 tests pass; mypy --strict clean
 
 ---
 
