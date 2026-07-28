@@ -69,7 +69,8 @@ The empty credits field (labs, drills) parses as `Decimal("0")`, not the integer
 ## Solver Guarantees
 
 **INV-16** Every schedule returned by the solver is conflict-free.  
-No two sections in a returned schedule share a meeting time on the same day. This includes labs and drills — all sections (parent + linked) are checked against each other.
+No two sections in a returned schedule share a meeting time on the same day. This includes labs and drills — all sections (parent + linked) are checked against each other.  
+**Exception:** Seminar1 + Seminar2 pairs from the same course intentionally share the same meeting time (double-graded seminars; see BASELINE.md Section 4). A parent + Attachment pair may also share a meeting time (observed in Fall 2026 catalog, e.g. LATN 033). These are the only permitted same-time overlaps; `_is_permitted_same_time_pair()` in `core/solver.py` enumerates them.
 
 **INV-17** Every schedule's total credits is within `[min_credits, max_credits]`.  
 The solver enforces both bounds as hard constraints. No schedule outside the credit range appears in the output, even if it would satisfy more requirements.

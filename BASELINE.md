@@ -777,62 +777,66 @@ Remove from consideration:
 
 **Sort candidates:** Priority-first ordering for backtracking efficiency. Sort by number of `RequirementItem` objects satisfied (descending), then by subject match to `Preferences.preferred_subjects`. This means the solver explores high-value courses first and prunes low-value dead ends earlier.
 
-### Step 2 — Linked Section Expansion
+### Step 2 — Linked Section Expansion (`expand_selection_options`)
 
-For each parent course with linked labs:
-- Generate all valid (parent, lab) option pairs.
-- A pair is initially valid if the lab does not conflict with the parent's meeting times (this is always true; they are scheduled to not overlap by the registrar, but verify).
-- The solver treats each (parent, lab) pair as a single selection unit.
+Produces `SelectionOption` objects — the atomic search unit for the solver.
 
-For language courses with required drills: same logic. Drill must be selected with parent.
+**Linked child semantics (Stage 4 implementation):**
+- `Lab`, `Drill`, `Language Section` → alternative group: exactly one required; one `SelectionOption` produced per valid child.
+- `Seminar2` → mandatory: always included with its Seminar1 parent; one option produced.
+- Single `Attachment` → mandatory: always included; one option produced.
+- Multiple `Attachments` on one parent → `LinkedSectionError` (ambiguous; observed in catalog as LATN 033 + Attachment co-meeting pair, which IS permitted by `_is_permitted_same_time_pair`).
 
-For double-graded seminars: the Seminar1 section is the selection unit; Seminar2 enters automatically as a linked section.
+**Same-time pairs permitted (not treated as conflicts):**
+- Seminar1 + Seminar2: documented double-graded seminars that meet simultaneously.
+- Parent + Attachment: observed in catalog (e.g. LATN 033) where the Attachment section runs at the identical time slot.
 
-### Step 3 — Backtracking
+**Credit counting:** `SelectionOption.credits == parent.credits` always. Lab/drill/Attachment child credits (always zero in the Swarthmore catalog) are never summed in. The Seminar2 credit is counted once via the Seminar1 parent.
+
+**Standalone credit-bearing orphan labs** (PHYS 063, 081, 082, 083): absent from `parse_catalog()` output; not recovered by the solver. Known limitation.
+
+**FY Seminar exclusion (Stage 4 limitation):** FY Seminar sections are excluded for ALL students during candidate filtering. The catalog year field `"202304"` is not a graduation year and cannot reliably identify first-year students. The correct fix requires a semester-to-class-year mapping that does not yet exist in the domain model.
+
+### Step 3 — Backtracking (`generate_schedules`)
+
+`generate_schedules(options, locked_sections, preferences, max_results=500) -> list[Schedule]`
+
+Returns **up to `max_results` valid schedules in deterministic priority order**, not the complete feasible set when capped.
 
 ```
 MAX_RESULTS = 500
 
-function build_schedules(
-    candidates,       # sorted list of (parent, optional lab) pairs
-    current,          # sections selected so far
-    current_credits,  # running credit total
-    results           # accumulator
-):
-    if current_credits >= min_credits:
-        results.append(finalize(current))
+function backtrack(start_idx, selected_options, selected_sections, current_credits):
+    if locked_credits + current_credits >= min_credits:
+        deduplicate via frozenset of all ref_nos
+        append Schedule(parent_secs, lab_secs, total_credits)
     
-    if len(results) >= MAX_RESULTS:
-        return
+    if len(results) >= MAX_RESULTS: return
     
-    for i, (parent, lab) in enumerate(candidates):
-        new_credits = current_credits + parent.credits
-        if new_credits > max_credits:
-            continue  # pruning: already over limit
+    for i in range(start_idx, len(options)):
+        opt = options[i]
+        if opt.parent.course_code in selected_codes: continue
+        if total_credits + opt.credits > max_credits: continue
+        if opt.all_sections conflicts with selected or locked: continue
         
-        if any section in current conflicts with parent or lab:
-            continue  # pruning: time conflict
-        
-        if parent.course_code already in current:
-            continue  # pruning: duplicate
-        
-        build_schedules(
-            candidates[i+1:],   # each course used at most once
-            current + [(parent, lab)],
-            new_credits,
-            results
-        )
+        choose; backtrack(i+1, ...); unchoose
 ```
 
-**Credit handling:** A schedule is added to results as soon as its credits meet `min_credits`. The loop continues to add more courses up to `max_credits`. This produces schedules of varying sizes within the allowed range.
+**Hard constraints enforced in filtering and search:**
+`min_credits`, `max_credits`, `free_days`, `earliest_start`, `latest_end`, `excluded_courses`, completed-course exclusion, exemption exclusion, locked-preregistered exclusion, unsupported types, missing meeting times, time conflicts, duplicate course codes.
 
-**Stopping condition:** Returns when either all combinations are exhausted or `MAX_RESULTS` is reached.
+`free_days` and time-window preferences are treated as **hard constraints** in Stage 4. The solver returns no schedules that violate them. The ranker may still score schedules on these dimensions.
 
-**Determinism:** Given the same candidate list and preferences, the solver always produces the same results in the same order. The candidate sort is deterministic (stable sort by requirement gain count, then by subject preference order).
+**Boundary case — locked credits equal `max_credits`:**
+Returns one `Schedule` containing only the locked sections. The ranker or orchestration layer assigns `category="current_registration"`; this function returns a plain `Schedule`.
 
-**Lab selection within a schedule:** If a parent has multiple lab options and all are passed in as separate (parent, lab) pairs, the solver will produce separate schedules for each valid lab option. This is correct behavior — the student will see that two schedules differ only in which lab section they attend.
+**Locked section resolution:** `StudentRecord.preregistered_courses` contains course codes, not exact catalog ref_nos. `resolve_locked_sections()` matches by normalized course code and raises `LockedSectionResolutionError` when zero or multiple parent sections match. The frontend must prompt the student to select their exact registered section when multiple matches exist.
 
-**Expected performance:** Filtered candidate pool: ~80–120 parent courses for a typical junior. With conflict pruning, the effective branching factor is much lower than C(120,4). Expected runtime under 3 seconds for `MAX_RESULTS=500`.
+**Deduplication:** Schedules are keyed by `frozenset` of all section `ref_no` values (parent + linked). Different lab choices produce distinct keys and are kept as separate results.
+
+**Determinism:** Given the same `options` list and `preferences`, always produces the same schedules in the same order. The candidate sort in `filter_candidates` is the primary determinism source.
+
+**Expected performance (Fall 2026 catalog, CS junior demo student):** 469 parent sections → 413 candidates after filtering → 477 selection options → 500 schedules in 0.011s; total pipeline 0.027s. Well within the 5-second target.
 
 ---
 

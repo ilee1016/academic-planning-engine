@@ -296,27 +296,37 @@ Returns only unsatisfied items that `section` would address. Logic:
 
 2. **Linked section expansion**:
    ```python
-   def expand_with_labs(
-       candidates: list[CourseSection],
-   ) -> list[tuple[CourseSection, CourseSection | None]]:
-   ```
-   For each parent with labs, produce one (parent, lab) tuple per lab option. For parents without labs, produce `(parent, None)`.
+   @dataclass(frozen=True)
+   class SelectionOption:
+       parent: CourseSection
+       linked_sections: tuple[CourseSection, ...]
+       @property
+       def all_sections(self) -> tuple[CourseSection, ...]: ...
+       @property
+       def credits(self) -> Decimal: ...  # parent.credits only
 
-3. **Conflict detection** (already on `CourseSection` and `MeetingTime` via `conflicts_with()`). Write standalone tests for it here.
+   def expand_selection_options(
+       candidates: list[CourseSection],
+       preferences: Preferences | None = None,
+   ) -> list[SelectionOption]:
+   ```
+   Produces one `SelectionOption` per valid linked-child combination. With `preferences`, child time-window and free-day violations remove individual options; a parent producing no valid options contributes nothing. See BASELINE.md Section 10 for linked-child semantics.
+
+3. **Conflict detection** (already on `CourseSection` and `MeetingTime` via `conflicts_with()`). Standalone tests in `test_solver.py`.
 
 4. **Backtracking solver**:
    ```python
    def generate_schedules(
-       candidates: list[tuple[CourseSection, CourseSection | None]],
+       options: list[SelectionOption],
        locked_sections: list[CourseSection],
        preferences: Preferences,
        max_results: int = 500,
    ) -> list[Schedule]:
    ```
-   The `locked_sections` parameter contains preregistered courses when `lock_preregistered=True`. The solver builds around them.
+   Returns **up to `max_results`** valid schedules in deterministic priority order (not all valid schedules when capped). The `locked_sections` parameter contains preregistered courses when `lock_preregistered=True`. The solver builds around them.
 
 5. **Pre-solver check** (boundary case):
-   Before calling the solver, check `locked_credits >= preferences.max_credits`. If true, evaluate locked sections against requirements and return them directly as a single `RankedSchedule` with `category="current_registration"` and `requirement_gains` computed from the locked sections. Do not run the solver.
+   Inside `generate_schedules`, if `locked_credits >= max_credits`: raise `InvalidLockedScheduleError` if above max; return a single locked-only `Schedule` if equal. The `category="current_registration"` label is NOT set here — it belongs to the ranker or orchestration layer. The solver only produces plain `Schedule` objects.
 
 **Property-based tests with Hypothesis:**
 ```python
