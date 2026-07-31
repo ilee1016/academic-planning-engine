@@ -140,13 +140,49 @@ The explainer is invoked only after the ranker produces at least one `RankedSche
 ## API and Session
 
 **INV-32** Session state is held in memory only.  
-No session data is written to disk or a database. The in-memory session dict is the single source of session truth. Sessions are lost on process restart.
+No session data is written to disk or a database. The in-memory session dict is the single source of session truth. Sessions are lost on process restart. Separate server worker processes each have their own independent store; no cross-process sharing occurs in MVP (single-worker deployment).
 
 **INV-33** The API never returns a `session_id` that references missing session state.  
-`POST /api/plan` with an unknown or expired `session_id` returns HTTP 404. The handler checks session existence before running any pipeline logic.
+Any endpoint receiving an unknown or expired `session_id` returns HTTP 404. The handler checks session existence before running any pipeline logic.
 
 **INV-34** The API never exposes raw `StudentRecord` data in the response.  
-The `POST /api/session` response contains only a sanitized student summary (name, major, class year, credits) and requirement status labels. Raw internal model objects do not flow directly to API responses.
+API responses contain only sanitized summaries — major, class year, catalog year, credit totals. Student name and student_id are deliberately excluded from all API response schemas.
+
+**INV-API-01** Raw upload bytes are never persisted after parsing.  
+`POST /api/session/{id}/inputs` reads file bytes into memory, parses them, and immediately discards the bytes. The session stores only the parsed domain objects.
+
+**INV-API-02** Raw audit text is never stored or returned.  
+The text extracted by pdfplumber during audit parsing is a local variable in the parse call. It is never stored in session state, written to disk, or included in any API response.
+
+**INV-API-03** Student identity is never serialized in API responses.  
+`StudentRecord.name` and `StudentRecord.student_id` may be present in the in-memory session for use by domain functions (e.g., `filter_candidates`), but they must never appear in any JSON response body. The `student_summary()` converter in `api_models.py` enforces this.
+
+**INV-API-04** Session IDs are opaque.  
+Generated via `secrets.token_urlsafe(32)`. They encode no student data, timestamps, or counters. They are not guessable from context.
+
+**INV-API-05** Expired sessions are inaccessible.  
+`InMemorySessionStore.get()` returns `None` for sessions that have exceeded their TTL. All endpoints that call `get()` treat `None` as HTTP 404.
+
+**INV-API-06** Route handlers contain no domain logic.  
+All filtering, expansion, solving, ranking, diagnostic, and requirement logic lives in `core/`, `adapters/`, and `orchestration.py`. Route handlers in `main.py` validate, delegate, translate, and return.
+
+**INV-API-07** API DTOs are distinct from core domain models.  
+Pydantic request/response models are defined in `api_models.py`. Domain dataclasses remain in `models.py`. No domain dataclass is returned directly from a route handler. Explicit conversion functions bridge the two layers.
+
+**INV-API-08** Decimal credit precision survives serialization.  
+Credit values are serialized as JSON strings (e.g., `"1.5"`, not `1.5`). This prevents floating-point drift in client code that reconstructs Decimal values from the response.
+
+**INV-API-09** Locked-section ambiguity is never resolved arbitrarily.  
+When a preregistered course code matches multiple catalog sections and no explicit ref_no is supplied, the API returns HTTP 409 with structured choices. It never picks a section on the student's behalf.
+
+**INV-API-10** Capped solver output is disclosed.  
+Every `/schedules` response includes `search_metadata.cap_reached` and `search_space_fully_enumerated`. When the solver was capped, the response text and metadata make clear that results represent the highest-ranked schedules among those generated, not the globally optimal set.
+
+**INV-API-11** Schedule IDs are deterministic and identity-free.  
+A schedule ID is the first 16 hex characters of the SHA-256 hash of the sorted section ref_nos. The same schedule always produces the same ID. The ID contains no student name, student_id, or session data.
+
+**INV-API-12** Valid no-schedule results return diagnostics, not HTTP 500.  
+When `generate_schedules()` returns an empty list, the endpoint returns HTTP 200 with `status="no_valid_schedules"` and a populated `diagnostic` field. An empty schedule result is not an error.
 
 ---
 
@@ -158,8 +194,48 @@ The `POST /api/session` response contains only a sanitized student summary (name
 **INV-35** The real degree audit PDF (`degreeauditexample.pdf`) must never be committed to git.  
 It is listed in `.gitignore`. All test fixtures use `audit_anonymized.pdf` or synthetic data. This invariant exists because the file contains real student PII including name and student ID.
 
-**INV-36** `ExplainerInput.student_name` contains only the student's first name.  
-The student's last name, student ID, and email address are never sent to the Claude API.
+**INV-36** (Updated — Stage 7) `ExplainerInput` contains no student identity.  
+The refined `ExplainerInput` (now in `core/explainer.py`) has no `student_name`, `student_id`, or any other personally identifying field.  Student identity is never sent to any AI provider.
+
+---
+
+## AI Explanation Layer (Stage 7)
+
+**INV-AI-01** The AI explanation layer receives only a sanitized `ExplainerInput`.  
+`core/explainer.py::build_explainer_input()` constructs an immutable DTO containing only schedule-derived data.  No `StudentRecord`, `RequirementStatus`, raw audit text, uploaded bytes, session metadata, tracebacks, or parser warnings are included.
+
+**INV-AI-02** AI never receives raw audit text or uploaded bytes.  
+`ExplainerInput` is constructed after parsing is complete and raw bytes are discarded.  The provider payload (built in `explanation_provider.py::_build_provider_message`) derives entirely from the sanitized DTO.
+
+**INV-AI-03** AI may not modify deterministic outputs.  
+`ExplanationService.explain()` returns `ExplanationResult(text, source)`.  It never mutates `RankedSchedule`, `Schedule`, `RequirementStatus`, or any other domain object.  Schedule data does not change as a result of calling the explanation endpoint.
+
+**INV-AI-04** Provider failure always falls back; never propagates as an API error.  
+Any exception from the provider — timeout, network error, validation failure, refusal — is caught by `ExplanationService._call_provider()`, logged as a sanitized category string, and replaced by the deterministic fallback.  The client always receives HTTP 200 when the session and schedule ID are valid.
+
+**INV-AI-05** Fallback output is deterministic.  
+`generate_fallback_explanation(ExplainerInput) -> str` is a pure function.  Identical inputs always produce identical output.
+
+**INV-AI-06** Unknown course codes in provider output are forbidden.  
+`validate_explanation()` extracts uppercase code-like patterns (`[A-Z]{2,5}\s?\d{3}[A-Z]?`) from provider output and rejects any that do not appear in the schedule's sections.  This catches prompt-injection attempts where adversarial course titles cause the provider to mention unscheduled codes.
+
+**INV-AI-07** Requirement gains must not be described as guaranteed completion.  
+`validate_explanation()` rejects output containing "completes the requirement", "fulfills … requirement", "ensures graduation", "guarantees completion", and equivalent phrases.  Safe alternatives: "addresses", "contributes toward", "makes progress toward".
+
+**INV-AI-08** Schedule generation never depends on the AI explanation layer.  
+`POST /api/session/{id}/schedules` returns ranked schedules without calling `ExplanationService` or any provider.  The explanation endpoint is entirely separate and lazy.
+
+**INV-AI-09** Provider calls occur only through `ExplanationService`.  
+No route handler, orchestration function, or core module calls `AnthropicProvider.explain()` directly.  `ExplanationService` is the sole entry point for any AI provider interaction.
+
+**INV-AI-10** Explanation logs contain no prompt text, provider response text, audit excerpts, or identity.  
+Provider failures are logged only as category strings: `explanation_provider_timeout`, `explanation_provider_invalid_output`, `explanation_provider_unavailable`.  Exception `.args` and tracebacks are not logged.
+
+**INV-AI-11** Provider configuration secrets are never serialized.  
+API keys are read from environment variables in `main.py` only, passed to `load_provider()` as arguments, and stored in `AnthropicProvider._client`.  They do not appear in API responses, OpenAPI schemas, session state, logs, or error messages.
+
+**INV-AI-12** Fallback explanations are deterministic and cached.  
+The `ExplanationService` LRU cache stores `ExplanationResult` objects (text + source only, max 500 entries, LRU eviction).  Cached results contain no raw provider output, no prompts, and no student data.
 
 ---
 

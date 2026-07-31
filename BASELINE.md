@@ -1007,7 +1007,74 @@ Diagnostics identify **likely binding constraints**, not a mathematically proven
 
 ## 13. API Contract
 
+**Note (Stage 6 update):** The original two-endpoint design (POST /api/session, POST /api/plan) was split into three endpoints for clearer separation of session creation, input upload, and schedule generation. The API is implemented in `main.py` with supporting modules `api_models.py`, `session_store.py`, and `orchestration.py`.
+
+### Endpoints
+
+```
+POST   /api/session                        Create a new planning session
+POST   /api/session/{session_id}/inputs    Upload audit PDF + catalog CSV
+POST   /api/session/{session_id}/schedules Generate and rank schedules
+GET    /api/session/{session_id}           Retrieve session status
+DELETE /api/session/{session_id}           Delete session
+GET    /health                             Health check
+```
+
+### Privacy Boundaries
+
+- Student name and student_id are never included in any API response.
+- Raw PDF bytes and CSV bytes are discarded immediately after parsing.
+- Raw audit text is never stored in session state or returned to clients.
+- Session IDs are generated with `secrets.token_urlsafe(32)` — opaque, unpredictable, encoding no student data.
+- Sanitized parser errors are returned to clients (no tracebacks, no local paths).
+
+### Session State and Expiration
+
+Sessions are in-memory only (no database). Default TTL: 2 hours. `purge_expired()` removes stale sessions. Separate server worker processes have independent stores (MVP single-worker deployment).
+
+### Locked-Section Selection
+
+When `lock_preregistered=True` and a preregistered course has multiple catalog sections:
+- Supply the specific `ref_no` in `locked_ref_nos` to resolve the ambiguity.
+- Without explicit ref_nos, the API returns HTTP 409 with the available choices.
+- Single-match courses auto-resolve.
+
+### Capped-Search Disclosure
+
+Every `/schedules` response includes `search_metadata.cap_reached` and `search_space_fully_enumerated`. When capped, the API explicitly states results are the best among generated schedules, not the globally optimal set.
+
+### Deterministic Schedule IDs
+
+IDs are SHA-256 hashes of sorted section ref_nos, truncated to 16 hex characters. Identical schedule contents → identical ID across requests. IDs contain no student data.
+
+### Schedule Grouping
+
+The response includes `top_schedules` (up to 10 globally) and `categories` (up to 3 per category label). Category labels: `requirements_first`, `preferred_subjects`, `compact_schedule`, `balanced`, `current_registration`.
+
 ### `POST /api/session`
+
+**Purpose:** Create a new planning session.
+
+**Request:** No body.
+
+**Response (201):**
+```json
+{
+  "session_id": "opaque-token-here",
+  "created_at": "2026-07-27T15:00:00+00:00"
+}
+```
+
+### `POST /api/session/{session_id}/inputs`
+
+**Purpose:** Upload audit and catalog files; parse and store. Raw bytes discarded after parsing.
+
+**Request:** `multipart/form-data`
+- `audit_file` — PDF file (Degree Works audit), max 10 MiB
+- `catalog_file` — CSV file (semester course schedule), max 10 MiB
+- `preferences_json` — optional JSON-encoded preferences string
+
+### `POST /api/session/{session_id}/schedules` (was POST /api/session)
 
 **Purpose:** Upload audit and catalog files; return parsed student state.
 
@@ -1095,6 +1162,134 @@ If `lock_preregistered == true` and locked preregistered credits `>= max_credits
 **Purpose:** Deployment health check.
 
 **Response (200):** `{"status": "ok"}`
+
+Health endpoint does not expose provider configuration, API key status, or provider availability.
+
+---
+
+### `POST /api/session/{session_id}/schedules/{schedule_id}/explanation`
+
+**Stage 7 addition.** Returns a natural-language explanation for one previously generated schedule.  Explanations are lazy: they are never generated during `POST /schedules`.
+
+**Purpose:** Generate or retrieve a cached explanation for a specific schedule.
+
+**Path parameters:**
+- `session_id` — an active session with inputs loaded
+- `schedule_id` — a deterministic ID from the most recent `POST /schedules` response
+
+**Response (200):**
+```json
+{
+  "schedule_id": "a3f9c2d1e8b47612",
+  "explanation": "This schedule includes 3 credits across 3 courses and 1 linked lab...",
+  "source": "fallback"
+}
+```
+`source` is `"provider"` when an AI provider is configured and returned valid output, `"fallback"` otherwise.
+
+**Error mapping:**
+- Session not found or expired → 404
+- Inputs not uploaded → 409
+- No planning results yet (schedule generation not run) → 409
+- Unknown schedule ID (not in most recent ranked results) → 404
+- Provider unavailable, timeout, or invalid output → 200 with `source="fallback"`
+
+**Privacy:** Explanation text is validated before being returned.  Student name, student ID, and unknown course codes are rejected.  Provider error details are never exposed.
+
+---
+
+## 13b. AI Explanation Layer (Stage 7)
+
+### Responsibilities
+
+The AI explanation layer may:
+- Summarize, explain, rephrase, and highlight tradeoffs already present in deterministic data
+
+The AI explanation layer must never:
+- Add, remove, or modify courses
+- Change scores, categories, credits, times, or requirement gains
+- Claim a requirement is completed, fulfilled, or finished
+- Invent prerequisite satisfaction, workload, instructor quality, seat availability, or graduation eligibility
+- Override diagnostics or produce a different schedule
+
+### Sanitized ExplainerInput
+
+`ExplainerInput` (defined in `core/explainer.py`) is the exact data boundary between the engine and the AI layer.  It contains:
+- `schedule_id` — deterministic hash (no student data)
+- `sections` — `ExplainerSection` tuples (course_code, title, credits, meeting_times, is_linked_child)
+- `total_credits` — Decimal
+- `requirement_gains` — `ExplainerRequirementGain` tuples (id, label)
+- `score`, `score_breakdown` — deterministic scoring data
+- `category` — schedule archetype label
+- `free_days`, `preferred_subjects` — from preferences
+- `solver_cap_reached` — cap disclosure flag
+
+It does NOT contain: student name, student ID, session ID, raw audit text, audit file name, instructor names (omitted), local paths, tracebacks, or uploaded bytes.
+
+### Deterministic Fallback Explanation
+
+`generate_fallback_explanation(ExplainerInput) -> str` produces a factual, 50–130 word explanation using only the DTO fields.  It:
+- States total credits and course/lab count
+- Mentions requirement gain labels using "addresses" or "contributes toward" (never "completes" or "fulfills")
+- Mentions the top 1–2 nonzero scoring components (translated to human-readable labels)
+- Mentions explicitly requested free days
+- Discloses the solver cap when reached
+- Is deterministic across repeated calls
+
+### Provider Abstraction
+
+`ExplanationProvider` (Protocol in `explanation_provider.py`):
+```python
+class ExplanationProvider(Protocol):
+    async def explain(self, explainer_input: ExplainerInput) -> str: ...
+```
+
+Concrete providers: `AnthropicProvider` (uses `anthropic` SDK, model `claude-haiku-4-5-20251001`).
+
+Configuration via environment variables (read only in `main.py`):
+```
+EXPLANATION_PROVIDER=none|anthropic   (default: none)
+ANTHROPIC_API_KEY=                    (required if provider=anthropic)
+ANTHROPIC_EXPLANATION_MODEL=          (default: claude-haiku-4-5-20251001)
+EXPLANATION_TIMEOUT_SECONDS=8         (default: 8)
+EXPLANATION_CACHE_SIZE=500            (default: 500)
+```
+
+Default is `none` — no AI credentials required to run the API, tests, or schedule generation.
+
+### Provider Prompt Boundary
+
+Provider system message contains only instructions.  All DTO values (course titles, labels, etc.) appear only in the user message as structured data.  This ensures adversarial content in course titles cannot escape into system-level instructions.
+
+### Output Validation
+
+`validate_explanation(text, ExplainerInput) -> str` enforces:
+- Non-empty after stripping
+- Maximum 1,500 characters
+- No control characters
+- No Markdown tables
+- No URLs
+- No provider refusal text
+- No requirement-completion or graduation-guarantee language
+- No uppercase course codes not present in the schedule
+- No student identity patterns
+
+Validation failures cause immediate fallback to the deterministic explanation.
+
+### Failure and Fallback Behavior
+
+Any provider failure (timeout, network error, invalid output, refusal) is:
+1. Logged as a sanitized category string only (`explanation_provider_timeout`, `explanation_provider_invalid_output`, `explanation_provider_unavailable`)
+2. Replaced by the deterministic fallback
+3. Never propagated as a client-visible HTTP error
+
+### Caching
+
+`ExplanationService` maintains a bounded LRU cache (default 500 entries) keyed by `(schedule_id, provider_name, prompt_version)`.  The cache contains only `ExplanationResult` (text + source); no StudentRecord, audit content, prompts, or raw provider responses.
+
+### No-AI-Required Operation
+
+The API, tests, and schedule generation all operate correctly with `EXPLANATION_PROVIDER=none`.  AI credentials are never required for development or testing.
 
 ---
 

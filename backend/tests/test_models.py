@@ -9,7 +9,6 @@ from app.models import (
     CompletedCourse,
     ConstraintDiagnostic,
     CourseSection,
-    ExplainerInput,
     MeetingTime,
     Preferences,
     RankedSchedule,

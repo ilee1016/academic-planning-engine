@@ -253,22 +253,6 @@ class RankedSchedule:
 
 
 @dataclass
-class ExplainerInput:
-    """Data transfer object for the AI explanation layer.
-
-    Contains only display-ready strings — no domain model objects, internal IDs,
-    scores, or implementation details. This is the exact boundary between the
-    deterministic engine and the generative AI layer.
-    """
-
-    student_name: str                  # first name only (e.g. "Isaac")
-    archetype_label: str               # e.g. "Best for Requirements"
-    credit_total: str                  # e.g. "3" or "4"
-    schedule_courses: list[str]        # display strings e.g. ["CPSC 031 — Intro (TR 11:20, lab W 10:30)"]
-    requirements_addressed: list[str]  # display strings e.g. ["CS Major — Intro to Computer Systems"]
-
-
-@dataclass
 class ConstraintDiagnostic:
     """Produced when the solver returns zero valid schedules.
 

@@ -404,55 +404,149 @@ Called only when `generate_schedules()` returns an empty list. Checks 11 priorit
 
 ---
 
-### Stage 6 — Backend API (`main.py`, Pydantic request/response models)
+### Stage 6 — Backend API (`main.py`, `api_models.py`, `session_store.py`, `orchestration.py`)
 
 **Why after ranking:** The API is a thin orchestration layer. It should not contain any business logic — all of that is already in `core/`. Adding the API before the engine is complete would risk leaking logic into route handlers.
 
 **Dependencies:** Stages 0–5.
 
-**What to implement:**
+**File responsibilities:**
 
-1. **Pydantic response models** (separate from domain models):
-   ```python
-   class StudentSummaryResponse(BaseModel): ...
-   class RequirementItemResponse(BaseModel): ...
-   class ScheduleResponse(BaseModel): ...
-   class PlanResponse(BaseModel): ...
-   ```
-   These are the serialization layer. Decimal fields are serialized as strings. Labs are nested inside their parent course in the response (not a flat array).
+| File | Responsibility |
+|------|---------------|
+| `app/main.py` | FastAPI app declaration, route handlers, exception translation, DI for session store |
+| `app/api_models.py` | Pydantic request/response schemas; conversion functions between API ↔ domain layers |
+| `app/session_store.py` | `PlanningSession` dataclass; `InMemorySessionStore` (thread-safe, TTL-aware) |
+| `app/orchestration.py` | `plan_schedules()`, `resolve_locked_sections_flexible()`, `group_ranked_by_category()` |
 
-2. **Session management**:
-   ```python
-   sessions: dict[str, SessionState] = {}
-   
-   @dataclass
-   class SessionState:
-       student: StudentRecord
-       sections: list[CourseSection]
-       requirement_status: RequirementStatus
-   ```
+**Local development command:**
+```bash
+cd backend
+.venv/bin/uvicorn app.main:app --reload --port 8000
+```
+Visit `http://localhost:8000/docs` for the interactive Swagger UI.
 
-3. **Route handlers** that do nothing except: validate input → call the pipeline → serialize output → return.
+**Test commands:**
+```bash
+cd backend
+.venv/bin/pytest tests/test_api_models.py tests/test_session_store.py \
+  tests/test_orchestration.py tests/test_api.py -v
+```
 
-4. **Decimal JSON serialization**: Configure Pydantic to serialize `Decimal` as strings. This is one setting in the model config.
+**Three endpoints (implemented):**
+```
+POST   /api/session                        Create session → 201 {session_id, created_at}
+POST   /api/session/{id}/inputs            Upload PDF+CSV → 200 InputSummaryResponse
+POST   /api/session/{id}/schedules         Plan → 200 ScheduleResultResponse | DiagnosticResultResponse
+GET    /api/session/{id}                   Session info → 200
+DELETE /api/session/{id}                   Delete → 204
+GET    /health                             Health → 200 {status: "ok"}
+```
 
-5. **CORS** for local frontend development.
+**Full-catalog API statistics (Fall 2026, CS junior, lock_preregistered=True, free_days=["F"]):**
+- Parse runtime: ~54 ms; orchestration runtime: ~17 ms; total: ~71 ms
+- Stored catalog sections: 469; candidates: 342; options: 355
+- Generated schedules: 500; ranked: 500; top in response: 10 (cap=3 per category)
+- Serialized response size: ~36 KB; solver cap reached: True
+- Deterministic IDs stable: True; score==breakdown_sum: True; PII in JSON: None
+- OpenAPI schema generates successfully; all 6 paths registered
 
 **Acceptance criteria:**
-- All three endpoints return correct responses with real fixture files
-- `curl -X POST /api/session` with valid fixture files returns 200 with non-empty student data
-- `curl -X POST /api/plan` with valid session returns 3 schedules in under 10 seconds
-- 422 for non-PDF audit file
-- 422 for non-CSV catalog file
-- 404 for invalid session_id
+- All endpoints return correct responses with synthetic fixture files
+- `POST /api/session/{id}/inputs` with valid fixtures returns 200 with sanitized summary
+- `POST /api/session/{id}/schedules` with valid session returns 200 in << 1 second
+- 422 for non-PDF audit file, non-CSV catalog file
+- 413 for oversized files (> 10 MiB)
+- 404 for invalid session_id or expired session
+- 409 for generate-before-upload or locked-section ambiguity
+- No PII in any API response
+- No raw tracebacks or file paths in error responses
+- 501/501 tests pass; mypy --strict clean
 
 ---
 
-### Stage 7 — Frontend (Next.js)
+### Stage 7 — AI Explanation Layer (`core/explainer.py`, `explanation_provider.py`, `explanation_service.py`)
 
-**Why last among backend stages:** The frontend is a consumer of the API. It cannot be built until the API is stable. Building it last also means the API contract is validated by real usage before any UI assumptions are baked in.
+**Why after Stage 6:** Explanations are cosmetic.  The full deterministic pipeline — parse, rank, schedule — works without AI.  Stage 7 adds a lazy explanation endpoint without changing any core logic.
 
-**Dependencies:** Stage 6.
+**Dependencies:** Stages 0–6.
+
+**File responsibilities:**
+
+| File | Responsibility |
+|------|---------------|
+| `app/core/explainer.py` | `ExplainerSection`, `ExplainerRequirementGain`, `ExplainerInput` DTOs; `build_explainer_input()`; `generate_fallback_explanation()`; `ExplanationValidationError`; `validate_explanation()`. No network, no provider imports. |
+| `app/explanation_provider.py` | `ExplanationProvider` (Protocol); `AnthropicProvider` (concrete); `_build_provider_message()`; `load_provider()` factory. |
+| `app/explanation_service.py` | `ExplanationResult`; `_BoundedCache`; `ExplanationService` (input construction, provider call, validation, fallback, cache). |
+| `app/main.py` (updated) | Reads env vars for provider config; creates `ExplanationService` singleton; adds `POST /api/session/{id}/schedules/{schedule_id}/explanation` endpoint; stores ranked schedules in session after generation; clears stale results on new upload. |
+| `app/session_store.py` (updated) | Adds `latest_ranked_schedules`, `latest_search_cap_reached`, `latest_preferences` to `PlanningSession`. |
+| `app/api_models.py` (updated) | Adds `ExplanationResponse`; exposes `compute_schedule_id()`. |
+| `app/models.py` (updated) | Old `ExplainerInput` removed; replaced by the narrower DTO in `core/explainer.py`. |
+
+**Configuration (env vars, read only in `main.py`):**
+```
+EXPLANATION_PROVIDER=none|anthropic   default: none
+ANTHROPIC_API_KEY=                    required if provider=anthropic
+ANTHROPIC_EXPLANATION_MODEL=          default: claude-haiku-4-5-20251001
+EXPLANATION_TIMEOUT_SECONDS=8         default: 8.0
+EXPLANATION_CACHE_SIZE=500            default: 500
+```
+
+**Local fallback mode (no credentials required):**
+```bash
+cd backend
+EXPLANATION_PROVIDER=none .venv/bin/uvicorn app.main:app --reload --port 8000
+```
+
+**Optional Anthropic provider setup:**
+```bash
+export EXPLANATION_PROVIDER=anthropic
+export ANTHROPIC_API_KEY=your-key-here
+.venv/bin/uvicorn app.main:app --reload --port 8000
+```
+
+**Explanation API flow:**
+1. `POST /api/session/{id}/schedules` → generates + stores `latest_ranked_schedules` in session (no provider call).
+2. `POST /api/session/{id}/schedules/{schedule_id}/explanation` → looks up `RankedSchedule` in session; calls `ExplanationService.explain()`; returns `{schedule_id, explanation, source}`.
+
+**Test commands:**
+```bash
+cd backend
+source .venv/bin/activate
+pytest tests/test_explainer.py tests/test_explanation_provider.py \
+       tests/test_explanation_service.py tests/test_api_explanations.py -v
+# No real provider calls occur in the test suite.
+```
+
+**Stage 7 statistics (Fall 2026, CS junior, with synthetic fixtures):**
+- Fallback generation runtime: ~0.03 ms
+- Provider-disabled explanation endpoint runtime: ~0.6 ms
+- Explanation response size: ~342 bytes
+- Deterministic repeated output: True
+- Student identity in explanation: None
+- Unknown course codes in fallback output: Zero
+- Schedule generation invokes provider: Never
+- OpenAPI paths with "explanation": 1 (`/api/session/{id}/schedules/{schedule_id}/explanation`)
+- New test count: 96 (43 explainer, 17 provider, 16 service, 20 API)
+- Total test count: 597/597 passing; mypy --strict clean
+
+**No real provider calls in tests.** All provider tests use fake implementations.
+
+**Acceptance criteria:**
+- `POST /schedules` returns ranked schedules without calling the explanation service.
+- `POST /schedules/{id}/explanation` returns 200 with fallback when no provider is configured.
+- Provider failure returns 200 with `source="fallback"` (never HTTP 500 from AI unavailability).
+- Explanation text passes output validation (no unknown codes, no completion claims, ≤ 1,500 chars).
+- No student identity in explanation or provider payload.
+- 597/597 tests pass; mypy --strict clean.
+
+---
+
+### Stage 9 — Frontend (Next.js)
+
+**Why after Stage 7:** The frontend consumes both the schedule API and the explanation endpoint. Build it after both are stable.
+
+**Dependencies:** Stages 6, 7.
 
 **Component hierarchy:**
 ```
@@ -484,50 +578,9 @@ app/results/page.tsx         # Results page (query param: session_id)
 
 ---
 
-### Stage 8 — AI Explanation Layer (`core/explainer.py`)
+### Stage 10 — Deployment
 
-**Why after frontend:** The explanation layer is cosmetic — it turns structured data into text. The product is useful without it. Building it last means the full pipeline is working before adding the API dependency, and the explanation can be visually verified in the actual UI.
-
-**Dependencies:** Stages 0, 6, 7.
-
-**What to implement:**
-
-```python
-async def explain_schedule(input: ExplainerInput) -> str:
-    client = AsyncAnthropic()
-    message = await client.messages.create(
-        model="claude-haiku-4-5-20251001",    # fast, cheap, more than capable for this task
-        max_tokens=200,
-        messages=[{
-            "role": "user",
-            "content": build_prompt(input),
-        }]
-    )
-    return message.content[0].text
-```
-
-**Prompt principles:**
-- Provide student name, archetype label, credit total, course display strings, requirement descriptions
-- Instruct the model to use only provided information — never invent course names or requirement details
-- Request 2–3 sentences only
-- Do not provide scores, IDs, or implementation details
-
-**Integration in `main.py`:**
-- Call `explain_schedule()` for each of the three `RankedSchedule` objects in parallel (asyncio.gather)
-- Wrap each call in try/except; on failure, set `explanation = ""`
-- Total added latency for three explanations in parallel: ~1–2 seconds
-
-**Acceptance criteria:**
-- Each schedule card shows a 2–3 sentence explanation referencing specific courses
-- Explanations do not contain internal IDs, score values, or hallucinated details
-- If the API call fails, the response still returns all three schedules (empty explanation)
-- Verifiable by manual review: compare explanation against `ExplainerInput` fields
-
----
-
-### Stage 9 — Deployment
-
-**When:** After Stages 0–8 pass all acceptance criteria and the full end-to-end flow works locally.
+**When:** After Stages 0–9 pass all acceptance criteria and the full end-to-end flow works locally.
 
 **Backend → Railway:**
 - `backend/Dockerfile` or `railway.toml` with `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
