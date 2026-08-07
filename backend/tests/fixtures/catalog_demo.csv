@@ -1,0 +1,29 @@
+"Fall 2026","Swarthmore College Course Schedule",,,"Demo Fixture"
+Crs Ref No,Subj,Num,Sec,Course Title,Cr,Dist,Enr Lim,Instructor(s),Course Type,Days,Times,Bldg & Room,note
+50001,CPSC,"=""031""","=""01""",Intro to Computer Systems,1,"NS, NSEP",18,"Demo,Instructor A (instr_a@example.edu)",Course,TR,11:20am-12:35pm,Science Center 104,Students must register for one Lab section below.
+50002,CPSC,"=""031""",A,Intro to Computer Systems-Lab,,,18,"Demo,Instructor A (instr_a@example.edu)",Lab,W,10:30am-12:00pm,Martin 327,
+50003,CPSC,"=""046""","=""01""",Ethical Issues in Computing,1,HU,22,"Demo,Instructor B (instr_b@example.edu)",Course,MWF,10:30am-11:20am,Science Center 101,
+50004,CPSC,"=""063""","=""01""",Artificial Intelligence,1,"NS, NSEP",36,"Demo,Instructor C (instr_c@example.edu)",Course,MW,09:00am-10:15am,Science Center 204,Students must register for lab section A or B below.
+50005,CPSC,"=""063""",A,Artificial Intelligence-Lab,,,18,"Demo,Instructor C (instr_c@example.edu)",Lab,T,01:05pm-02:35pm,Martin 113,
+50006,CPSC,"=""063""",B,Artificial Intelligence-Lab,,,18,"Demo,Instructor C (instr_c@example.edu)",Lab,T,02:45pm-04:15pm,Martin 113,
+50007,CPSC,"=""071""","=""01""",Machine Learning,1,"NS, NSEP",24,"Demo,Instructor D (instr_d@example.edu)",Course,TR,01:15pm-02:30pm,Science Center 240,Students must register for one Lab section below.
+50008,CPSC,"=""071""",A,Machine Learning-Lab,,,24,"Demo,Instructor D (instr_d@example.edu)",Lab,R,03:00pm-04:30pm,Martin 113,
+50009,CPSC,"=""081""","=""01""",Programming Languages,1,NS,22,"Demo,Instructor E (instr_e@example.edu)",Course,TR,09:55am-11:10am,Science Center 101,
+50010,CPSC,"=""091""","=""01""",Parallel & Distributed Computing,1,"NS, NSEP",20,"Demo,Instructor F (instr_f@example.edu)",Course,MW,01:15pm-02:30pm,Science Center 240,
+50011,CPSC,"=""097""","=""01""",Senior Seminar in CS,0.5,,15,"Demo,Instructor G (instr_g@example.edu)",Course,F,02:30pm-04:00pm,Science Center 256,
+50012,MATH,"=""028""","=""01""",Differential Equations,1,NS,25,"Demo,Instructor H (instr_h@example.edu)",Course,MWF,09:30am-10:20am,Science Center 158,
+50013,ENGL,"=""020""","=""01""",Writing About Literature,1,HUW,18,"Demo,Instructor I (instr_i@example.edu)",Course,MWF,01:15pm-02:05pm,Trotter Hall 110,
+50014,ENGL,"=""045""","=""01""",Science Writing,1,NSW,16,"Demo,Instructor J (instr_j@example.edu)",Course,TR,08:30am-09:45am,Trotter Hall 102,Writing-intensive course with NSW designation.
+50015,PHIL,"=""001""","=""01""",Introduction to Philosophy,1,HU,24,"Demo,Instructor K (instr_k@example.edu)",Course,MWF,11:30am-12:20pm,Kohlberg 116,
+50016,ECON,"=""001""","=""01""",Introduction to Economics,1,SS,30,"Demo,Instructor L (instr_l@example.edu)",Course,TR,09:55am-11:10am,Kohlberg 116,
+50017,BIOL,"=""001""","=""01""",Introduction to Biology I,1,"NS, NSEP",24,"Demo,Instructor M (instr_m@example.edu)",Course,TR,11:20am-12:35pm,Singer Hall 101,Students must register for one Lab section below.
+50018,BIOL,"=""001""",A,Introduction to Biology I-Lab,,,12,"Demo,Instructor M (instr_m@example.edu)",Lab,M,01:15pm-04:15pm,Singer Hall 302,
+50019,BIOL,"=""001""",B,Introduction to Biology I-Lab,,,12,"Demo,Instructor M (instr_m@example.edu)",Lab,W,01:15pm-04:15pm,Singer Hall 302,
+50020,HIST,"=""001""","=""01""",History of the Modern World,1,HU,30,"Demo,Instructor N (instr_n@example.edu)",Course,MWF,11:30am-12:20pm,Kohlberg 305,
+50021,PSYC,"=""001""","=""01""",Introduction to Psychology,1,SS,35,"Demo,Instructor O (instr_o@example.edu)",Course,TR,01:15pm-02:30pm,Singer Hall 115,
+50022,SPAN,"=""001""","=""01""",Elementary Spanish I,1.5,HU,16,"Demo,Instructor P (instr_p@example.edu)",Language Course,MWF,09:30am-10:20am,Kohlberg 302,Students must enroll in drill section A below.
+50023,SPAN,"=""001""",A,Elementary Spanish I-Drill,,,16,,Drill,TR,09:55am-11:10am,Kohlberg 114,
+50024,ANTH,"=""027""","=""01""",Ethnographies Contemporary Latin America,1,SS,25,"Demo,Instructor Q (instr_q@example.edu)",Course,TR,01:15pm-02:30pm,Kohlberg 116,
+50025,PHYS,"=""001""","=""01""",Introduction to Physics I,1,"NS, NSEP",28,"Demo,Instructor R (instr_r@example.edu)",Course,MWF,01:15pm-02:05pm,Science Center 199,Students must register for one Lab section below.
+50026,PHYS,"=""001""",A,Introduction to Physics I-Lab,,,14,"Demo,Instructor R (instr_r@example.edu)",Lab,T,02:45pm-05:00pm,Science Center Lab 012,
+50027,PHYS,"=""001""",B,Introduction to Physics I-Lab,,,14,"Demo,Instructor R (instr_r@example.edu)",Lab,R,02:45pm-05:00pm,Science Center Lab 012,

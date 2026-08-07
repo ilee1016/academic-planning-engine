@@ -123,9 +123,22 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+
+def _parse_cors_origins(raw: str | None = None) -> list[str]:
+    """Return allowed CORS origins from a comma-separated string.
+
+    When ``raw`` is None, reads the ``FRONTEND_ORIGIN`` environment variable,
+    defaulting to ``http://localhost:3000`` for local development.
+    """
+    effective = raw if raw is not None else os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
+    return [o.strip() for o in effective.split(",") if o.strip()]
+
+
+_allowed_origins = _parse_cors_origins()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=_allowed_origins,
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type"],
 )

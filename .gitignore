@@ -7,13 +7,17 @@ __pycache__/
 *.py[cod]
 *.pyo
 .venv/
+venv/
 *.egg-info/
 dist/
 build/
 
-# Environment
+# Environment — allow .env.example templates, ignore everything else
 .env
+.env.local
+.env.*.local
 .env.*
+!.env.example
 
 # Node
 node_modules/
@@ -22,3 +26,6 @@ node_modules/
 # OS
 .DS_Store
 Thumbs.db
+
+# Planning scratch files
+plan.md
