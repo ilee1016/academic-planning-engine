@@ -40,6 +40,7 @@ from io import BytesIO, StringIO
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.adapters.swarthmore.requirement_defs import UnsupportedProgramError
@@ -120,6 +121,13 @@ app = FastAPI(
     ),
     docs_url="/docs",
     redoc_url="/redoc",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type"],
 )
 
 # ---------------------------------------------------------------------------

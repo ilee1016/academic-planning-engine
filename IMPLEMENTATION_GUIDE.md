@@ -542,39 +542,56 @@ pytest tests/test_explainer.py tests/test_explanation_provider.py \
 
 ---
 
-### Stage 9 — Frontend (Next.js)
+### Stage 8 — Frontend (Next.js) ✓ COMPLETE
 
-**Why after Stage 7:** The frontend consumes both the schedule API and the explanation endpoint. Build it after both are stable.
+**Status:** All quality gates pass. 77/77 frontend tests, ESLint clean, TypeScript strict clean, production build successful, 597/597 backend tests still passing.
 
-**Dependencies:** Stages 6, 7.
+**Stack:** Next.js 16.3.0 (App Router), TypeScript, Tailwind CSS 4, Vitest + React Testing Library.
 
-**Component hierarchy:**
+**Directory structure:**
 ```
-app/page.tsx                 # Upload page
-app/results/page.tsx         # Results page (query param: session_id)
-  components/AuditSummary    # Student profile + requirement status
-  components/PreferencesForm # Credit range, free days, start/end times, subjects
-  components/ScheduleCard    # One recommended schedule
-    components/WeekCalendar  # 5-day calendar with time blocks
-    components/RequirementBadge  # Green tag per satisfied requirement
-    components/ScoreBreakdown    # Collapsed accordion
-  components/DiagnosticPanel # No-schedule error state
+frontend/
+├── app/
+│   ├── page.tsx              # Upload / landing page
+│   ├── planner/page.tsx      # Academic summary + preferences form
+│   └── results/page.tsx      # Schedule results, comparison, diagnostics
+├── components/
+│   ├── upload/FileUploadCard.tsx
+│   ├── academic/AcademicSummary.tsx
+│   ├── planner/PreferencesForm.tsx
+│   ├── planner/LockedSectionResolver.tsx
+│   ├── schedules/ScheduleCard.tsx
+│   ├── schedules/WeekCalendar.tsx
+│   ├── schedules/ExplanationPanel.tsx
+│   └── shared/{ErrorState,LoadingState,EmptyState}.tsx
+├── lib/
+│   ├── types.ts      # API response types (snake_case, matching FastAPI)
+│   ├── api.ts        # All fetch() calls; typed per endpoint
+│   ├── formatting.ts # Category/score labels, time, credits, wording
+│   └── schedule.ts   # cn(), CalendarBlock, color, free days, timespan
+└── __tests__/
+    ├── formatting.test.ts
+    ├── api.test.ts
+    ├── schedule.test.ts
+    └── components.test.tsx
 ```
 
-**Calendar design decision:** The `WeekCalendar` renders sessions as blocks positioned by start/end time. Parent courses and labs use distinct visual treatment (solid fill vs. hatched/lighter fill) so the student can immediately see which blocks are labs. This distinction is critical for schedules like the CPSC 031 + lab combination where Wednesday becomes a heavy lab day.
+**Key frontend invariants:**
+- Frontend never determines schedule validity.
+- Frontend never alters score or requirement data.
+- `ref_no` is never the primary visible label in the UI.
+- Provider credentials never reach the frontend bundle.
+- Student identity is never persisted in browser storage (only `session_id`).
+- All API calls go through `lib/api.ts`; components never call `fetch()` directly.
+- UI uses "highest-ranked generated" not "best possible" or "global optimum."
+- Requirement wording uses "Makes progress toward," never "completes" or "fulfills."
+- Category labels map to human-friendly strings (`formatCategoryLabel`).
 
-**UX requirements:**
-- Preregistered course lock toggle must appear before the preferences form, not after
-- If student is already at max credits, show current registration evaluation without the credit preferences form
-- CPSC 031 "2027-2028 Students ONLY" warning appears prominently in the audit summary, not buried in course details
-- When no schedule is generated: show diagnostic panel with actionable suggestions, not a generic error
+**Session lifecycle:** `session_id` stored in `sessionStorage` only. Parsed summary in `sessionStorage`. Nothing student-identifying in storage.
 
-**Acceptance criteria:**
-- Full upload-to-results flow works in Chrome without JavaScript errors
-- WeekCalendar correctly renders lab blocks distinct from lecture blocks
-- Each schedule card displays which remaining requirements it addresses
-- The "already fully enrolled" state shows current registration with requirement evaluation
-- DiagnosticPanel renders with reasons and suggested relaxations when returned
+**CORS:** Backend allows `http://localhost:3000` with `CORSMiddleware`. No wildcard origins.
+
+**Frontend env var:** `NEXT_PUBLIC_API_URL=http://localhost:8000` (set in `.env.local`; `.env.example` provided).
 
 ---
 
